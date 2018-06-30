@@ -167,15 +167,15 @@ mesh nodes will be defined (see below).
 
 In order to facilitate the definition of fields on the component, the following
 additional data can be stored in every part of the component: for all lower
-dimensional entities that are boundary to the *main* entities of the part, define
-an array that maps the local (to the part) indices to the domain-indices. These
-arrays plus the main array (the one describing the highest dimensional entities
-of the component) define local numberings of all entities inside each
-part. These numberings will be used to define the ordering of the degrees of
-freedom of a field. When the main entity array is NULL (indicating that all
-entities in the domain are used) then the lower dimensional entities will also be
-NULL because there is no need to have local numbering of the entities - the
-original numbering defined by the domain can be reused.
+dimensional entities that are boundary to the *main* entities of the part,
+define an array that maps the local (to the part) indices to the
+domain-indices. These arrays plus the main array (the one describing the highest
+dimensional entities of the component) define local numberings of all entities
+inside each part. These numberings will be used to define the ordering of the
+degrees of freedom of a field. When the main entity array is `NULL` (indicating
+that all entities in the domain are used) then the lower dimensional entities
+will also be `NULL` because there is no need to have local numbering of the
+entities - the original numbering defined by the domain can be reused.
 
 In addition to the parts, a component also stores relations to other
 components. A relation to a component of lower or higher dimension indicates a
