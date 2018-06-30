@@ -1,6 +1,6 @@
 # FMS Documentation
 
-This header provides a brief description of the FMS data format/API proposed by
+This file provides a brief description of the FMS data format/API proposed by
 the ECP/CEED co-design center to represent unstructured high-order meshes with
 general high-order finite element fields defined on them.
 
@@ -197,7 +197,7 @@ In FMS, components are described using objects of type `FmsComponent` which only
 exist as part of an `FmsMesh` and are created using the `FmsMeshAddComponent()`
 function.  Parts and their entities can be added to the component with the
 functions `FmsComponentAddPart()`, `FmsComponentAddPartEntities()`,
-`FmsComponentAddRelation`, etc.
+`FmsComponentAddRelation()`, etc.
 
 ### Mesh Tags
 
@@ -214,8 +214,8 @@ mesh component.
 
 In FMS, tags are described using objects of type `FmsTag` which exist only as a
 part of a mesh and can be created using the `FmsMeshAddTag()` function and
-described by the functions `FmsTagSetComponent()`, `FmsTagSet`,
-`FmsTagAddDescriptions`, etc.
+described by the functions `FmsTagSetComponent()`, `FmsTagSet()`,
+`FmsTagAddDescriptions()`, etc.
 
 ## Fields
 
@@ -239,9 +239,9 @@ using the formula `i+num_dofs*j`.
 
 FMS fields and their descriptors are stored in, and only exist as part of,
 objects of type `FmsDataCollection` which in turn can be created on top of an
-`FmsMesh` object using the function `FmsDataCollectionCreate`. Objects of types
+`FmsMesh` object using the function `FmsDataCollectionCreate()`. Objects of types
 `FmsField` and `FmsFieldDescriptor` can be created with the functions
-`FmsDataCollectionAddFieldDescriptor` and `FmsDataCollectionAddField`.
+`FmsDataCollectionAddFieldDescriptor()` and `FmsDataCollectionAddField()`.
 
 ## Example
 
