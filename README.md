@@ -1,7 +1,7 @@
 # FMS: CEED's high-order Field and Mesh Specification
 
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
-[![Doxygen](https://codedocs.xyz/CEED/FMS.svg)](https://codedocs.xyz/CEED/FMS/)
+[![Documentation](https://codedocs.xyz/CEED/FMS.svg)](https://codedocs.xyz/CEED/FMS/)
 
 ## High-Order Data Description
 
