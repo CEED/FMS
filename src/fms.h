@@ -501,9 +501,7 @@ int FmsDomainAddOrientation(FmsDomain domain, FmsEntityType type, FmsInt ent_id,
 
 /// TODO: dox
 /** All entities of the highest dimension in the domain are added to the
-    component.
-
-    This call may create multiple parts in the component description. */
+    component. */
 int FmsComponentAddDomain(FmsComponent comp, FmsDomain domain);
 
 /// TODO: dox
@@ -560,7 +558,8 @@ int FmsTagAllocate(FmsTag tag, FmsIntType stored_tag_type, void **ent_tags,
 
 /// TODO: dox
 /** The arrays @a tags and @a tag_descr have the same size, @a num_tags. The
-    tags and their descriptions are copied internally. */
+    tags and their descriptions are copied internally. The @a tag_type is the
+    type of the input array @a tags. */
 int FmsTagAddDescriptions(FmsTag tag, FmsIntType tag_type, const void *tags,
                           const char *const *tag_descr, FmsInt num_tags);
 

@@ -772,11 +772,11 @@ static int FmsOrientHexSides(FmsInt num_hexes, FmsInt *hex_edges,
     }
 
     // Determine side orientations
-    for (int loc_face_id = 0; loc_face_id < 4; loc_face_id++) {
+    for (int loc_face_id = 0; loc_face_id < 6; loc_face_id++) {
       const int *e = hex_face_edge[loc_face_id];
-      int ne[3] = { nc[e[0]], nc[e[1]], nc[e[2]] };
-      FmsInt ee[3] = { ei[e[0]], ei[e[1]], ei[e[2]] };
-      FmsInt *be = hex_edges+3*loc_face_id;
+      int ne[4] = { nc[e[0]], nc[e[1]], nc[e[2]], nc[e[3]] };
+      FmsInt ee[4] = { ei[e[0]], ei[e[1]], ei[e[2]], ei[e[3]] };
+      FmsInt *be = hex_edges+4*loc_face_id;
       // Orientations will be computed relative to (be[0],be[1],be[2],be[3])
       FmsOrientation ori =
         GetQuadOrientation(ne, ee, be, hex_edges_sorted[loc_face_id]);
@@ -930,7 +930,7 @@ int FmsMeshFinalize(FmsMesh mesh) {
       const size_t sizeof_side_ids = FmsIntTypeSize[side_ids_type];
       const FmsInt num_hexes = domain->num_entities[et];
       const char *all_hexes = domain->entities[et];
-      const void *all_quads = domain->entities[FMS_TRIANGLE];
+      const void *all_quads = domain->entities[FMS_QUADRILATERAL];
       FmsOrientation *oris = domain->orientations[et];
       const int bsize = 256;
       FmsInt hex_edges[24*bsize];
@@ -1575,16 +1575,14 @@ int FmsTagAddDescriptions(FmsTag tag, FmsIntType tag_type, const void *tags,
                           const char *const *tag_descr, FmsInt num_tags) {
   if (!tag) { E_RETURN(1); }
   if (tag_type >= FMS_NUM_INT_TYPES) { E_RETURN(2); }
-  if (tag->tag_type != FMS_NUM_INT_TYPES && tag->tag_type != tag_type) {
-    E_RETURN(3);
-  }
+  if (tag->tag_type == FMS_NUM_INT_TYPES) { E_RETURN(3); }
   if (num_tags == 0) { return 0; }
   if (tags == NULL) { E_RETURN(4); }
   if (tag_descr == NULL) { E_RETURN(5); }
   const FmsInt num_tag_descriptions = tag->num_tag_descriptions;
-  void *described_tags = tag->described_tags;
+  char *described_tags = tag->described_tags;
   char **tag_descriptions = tag->tag_descriptions;
-  const size_t sizeof_tag_type = FmsIntTypeSize[tag_type];
+  const size_t sizeof_tag_type = FmsIntTypeSize[tag->tag_type];
   const FmsInt nc = NextPow2(num_tag_descriptions + num_tags);
   if (num_tag_descriptions <= nc/2) {
     described_tags = realloc(described_tags, nc*sizeof_tag_type);
@@ -1595,8 +1593,9 @@ int FmsTagAddDescriptions(FmsTag tag, FmsIntType tag_type, const void *tags,
     tag->tag_descriptions = tag_descriptions;
   }
   // Copy the new described tags
-  memcpy((char*)described_tags + num_tag_descriptions*sizeof_tag_type, tags,
-         num_tags*sizeof_tag_type);
+  FmsIntConvertCopy(tag_type, tags, tag->tag_type,
+                    described_tags + num_tag_descriptions*sizeof_tag_type,
+                    num_tags);
   // Copy the new description strings
   for (FmsInt i = 0; i < num_tags; i++) {
     if (FmsCopyString(tag_descr[i],
@@ -1609,7 +1608,6 @@ int FmsTagAddDescriptions(FmsTag tag, FmsIntType tag_type, const void *tags,
   }
   // Update tag
   tag->num_tag_descriptions = num_tag_descriptions + num_tags;
-  tag->tag_type = tag_type;
   return 0;
 }
 
@@ -2251,7 +2249,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
       }
       src_ents += sz*num_sides*sizeof_idx_type;
       side_ori += sz*num_sides;
-      ents_verts += sz*num_verts;
+      ents_verts = (char*)ents_verts + sz*num_verts*FmsIntTypeSize[ent_id_type];
     }
     break;
   }
@@ -2270,7 +2268,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
       FmsEntitiesToSides(idx_type, num_sides, 0, 1, src_ents, 2,
                          all_edges, 4, 0, quad_vert, sz);
       FmsEntitiesToSides(idx_type, num_sides, 2, 1, src_ents, 2,
-                         all_edges, 4, 1, quad_vert, sz);
+                         all_edges, 4, 2, quad_vert, sz);
       // quad_vert + side_ori -> quad_vert_x
       for (FmsInt i = 0; i < sz; i++) {
         const FmsInt *qv = quad_vert+4*i;
@@ -2301,7 +2299,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
       }
       src_ents += sz*num_sides*sizeof_idx_type;
       side_ori += sz*num_sides;
-      ents_verts += sz*num_verts;
+      ents_verts = (char*)ents_verts + sz*num_verts*FmsIntTypeSize[ent_id_type];
     }
     break;
   }
@@ -2338,13 +2336,19 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
             eo[3*j+e] = tri_side_ori[3*tf[j+1]+e];
           }
         }
+        if (so[1] == FMS_ORIENTATION_UNKNOWN ||
+            so[2] == FMS_ORIENTATION_UNKNOWN) {
+          E_RETURN(12);
+        }
         FmsPermuteTriBdr(so[1], te+0, te_x+0);
         FmsPermuteTriBdr(so[1], eo+0, eo_x+0);
+        if (so[1]%2) { for (int j = 0; j < 3; j++) { eo_x[j] = 1-eo_x[j]; } }
         FmsPermuteTriBdr(so[2], te+3, te_x+3);
         FmsPermuteTriBdr(so[2], eo+3, eo_x+3);
+        if (so[2]%2) { for (int j = 3; j < 6; j++) { eo_x[j] = 1-eo_x[j]; } }
 #ifndef NDEBUG
         if (te_x[2] != te_x[4]) { FmsInternalError(); }
-        // if (eo_x[2] != 1-eo_x[4]) { FmsInternalError(); }
+        if (eo_x[2] != 1-eo_x[4]) { FmsInternalError(); }
 #endif
         tet_edge[2*i+0] = te_x[0];
         tet_edge[2*i+1] = te_x[5];
@@ -2380,7 +2384,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
       }
       src_ents += sz*num_sides*sizeof_idx_type;
       side_ori += sz*num_sides;
-      ents_verts += sz*num_verts;
+      ents_verts = (char*)ents_verts + sz*num_verts*FmsIntTypeSize[ent_id_type];
     }
     break;
   }
@@ -2415,21 +2419,27 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
         FmsInt he_x[8], eo_x[8];
         for (int j = 0; j < 2; j++) {
           for (int e = 0; e < 4; e++) {
-            eo[4*j+e] = quad_side_ori[3*hf[j+1]+e];
+            eo[4*j+e] = quad_side_ori[4*hf[j+1]+e];
           }
+        }
+        if (so[0] == FMS_ORIENTATION_UNKNOWN ||
+            so[1] == FMS_ORIENTATION_UNKNOWN) {
+          E_RETURN(12);
         }
         FmsPermuteQuadBdr(so[0], he+0, he_x+0);
         FmsPermuteQuadBdr(so[0], eo+0, eo_x+0);
+        if (so[0]%2) { for (int j = 0; j < 4; j++) { eo_x[j] = 1-eo_x[j]; } }
         FmsPermuteQuadBdr(so[1], he+4, he_x+4);
         FmsPermuteQuadBdr(so[1], eo+4, eo_x+4);
+        if (so[1]%2) { for (int j = 4; j < 8; j++) { eo_x[j] = 1-eo_x[j]; } }
         hex_edge[4*i+0] = he_x[0];
         hex_edge[4*i+1] = he_x[2];
         hex_edge[4*i+2] = he_x[4];
         hex_edge[4*i+3] = he_x[6];
-        hex_face[2*i+0] = eo_x[0];
-        hex_face[2*i+1] = eo_x[2];
-        hex_face[2*i+2] = eo_x[4];
-        hex_face[2*i+3] = eo_x[6];
+        hex_face[4*i+0] = eo_x[0];
+        hex_face[4*i+1] = eo_x[2];
+        hex_face[4*i+2] = eo_x[4];
+        hex_face[4*i+3] = eo_x[6];
       }
       // hex_edge[mod] -> hex_vert_x[mod]
       FmsIntConvertCopy(FMS_INT_TYPE, hex_edge,
@@ -2470,7 +2480,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
       }
       src_ents += sz*num_sides*sizeof_idx_type;
       side_ori += sz*num_sides;
-      ents_verts += sz*num_verts;
+      ents_verts = (char*)ents_verts + sz*num_verts*FmsIntTypeSize[ent_id_type];
     }
     break;
   }
@@ -2521,7 +2531,7 @@ int FmsComponentGetPart(FmsComponent comp, FmsInt part_id, FmsEntityType type,
   if (!comp) { E_RETURN(1); }
   if (part_id >= comp->num_parts) { E_RETURN(2); }
   if (type >= FMS_NUM_ENTITY_TYPES) { E_RETURN(3); }
-  if (FmsEntityDim[type] != comp->dim) { E_RETURN(4); }
+  // if (FmsEntityDim[type] != comp->dim) { E_RETURN(4); }
   struct _FmsPart_private *part = &comp->parts[part_id];
   if (domain) { *domain = part->domain; }
   if (ent_id_type) { *ent_id_type = part->entities_ids_type[type]; }
@@ -2537,7 +2547,7 @@ int FmsComponentGetPartSubEntities(FmsComponent comp, FmsInt part_id,
   if (!comp) { E_RETURN(1); }
   if (part_id >= comp->num_parts) { E_RETURN(2); }
   if (type >= FMS_NUM_ENTITY_TYPES) { E_RETURN(3); }
-  if (FmsEntityDim[type] >= comp->dim) { E_RETURN(4); }
+  // if (FmsEntityDim[type] >= comp->dim) { E_RETURN(4); }
   struct _FmsPart_private *part = &comp->parts[part_id];
   if (ent_id_type) { *ent_id_type = part->entities_ids_type[type]; }
   if (ents) { *ents = part->entities_ids[type]; }
