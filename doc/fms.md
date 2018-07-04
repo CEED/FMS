@@ -323,7 +323,7 @@ int main(int argc, const char *argv[]) {
   FmsMeshValidate(mesh);
 
   // Coordinates Field
-  // Defdine data collection
+  // Define data collection
   FmsDataCollection dc;
   FmsDataCollectionCreate(mesh, "data collection", &dc);
 
