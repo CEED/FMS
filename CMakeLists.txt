@@ -20,6 +20,9 @@ cmake_minimum_required (VERSION 3.1)
 # Project name
 project(FMS VERSION 0.1 LANGUAGES C)
 
+# Optional demo - see examples/README.md for more information
+option(ENABLE_DEMO "Enable the PUMI + MFEM demo" OFF)
+
 # Set a default configuration type
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
@@ -27,3 +30,10 @@ endif()
 
 # Source FMS directory
 add_subdirectory(src)
+
+# PUMI_DIR and MFEM_DIR are needed when ENABLE_DEMO=ON
+set(PUMI_DIR "" CACHE PATH "Path to the PUMI library.")
+set(MFEM_DIR "" CACHE PATH "Path to the MFEM library.")
+
+# Examples subdirectory
+add_subdirectory(examples)
