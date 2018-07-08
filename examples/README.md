@@ -41,7 +41,7 @@ make
 cd examples
 ./demo_pumi_mfem
 ```
-The last step in the demo will send the mesh to [GLVis](http://glvis.org/) for visualization, if a GLVis server is running. GLVis can be cloned and built using the following commands, e.g. next to the FMS, PUMI, and MFEM directories (see [glvis/INSTALL](https://github.com/GLVis/glvis/blob/master/INSTALL) file for additional required libraries):
+The last step in the demo will send the mesh to [GLVis](http://glvis.org/) for visualization, if a GLVis server is running. GLVis can be cloned and built using the following commands, e.g. next to the FMS, PUMI, and MFEM directories (see the [glvis/INSTALL](https://github.com/GLVis/glvis/blob/master/INSTALL) file for additional required libraries):
 ```console
 git clone https://github.com/GLVis/glvis.git
 cd glvis
