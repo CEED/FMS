@@ -18,6 +18,10 @@ documentation](doc/fms.md) for more details.
 
 ![High-order mesh and solution](doc/triple-pt-2x2.png)
 
+The following diagram illustrates the current and planned components of FMS.
+
+![FMS components](doc/components.png)
+
 The repository is part of the [CEED software suite][ceed-soft], a collection of
 software benchmarks, miniapps, libraries and APIs for efficient exascale
 discretizations based on high-order finite element and spectral element methods.
