@@ -44,6 +44,7 @@ if(FMS_ENABLE_TESTS)
   # Include google test and turn on CMake testing
   enable_testing()
   enable_language(CXX)
+  set(INSTALL_GTEST OFF CACHE BOOL "Turn off GTest install")
   add_subdirectory(thirdparty/googletest)
   add_subdirectory(tests)
 endif()
