@@ -17,14 +17,17 @@
 set(FMS_SOURCES fms.c)
 set(FMS_HEADERS fms.h)
 
-add_library(fms ${FMS_SOURCES})
+add_library(fms ${FMS_SOURCES} ${FMS_HEADERS})
 set_property(TARGET fms PROPERTY C_STANDARD 99)
 
 target_include_directories(fms PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<INSTALL_INTERFACE:include>
-  )
+  $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
 
-install(TARGETS fms DESTINATION lib EXPORT fms)
+include(GNUInstallDirs)
+install(TARGETS fms DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT fms)
 install(FILES ${FMS_HEADERS} DESTINATION include)
-install(EXPORT fms DESTINATION lib/cmake/fms)
+install(EXPORT fms 
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms
+  NAMESPACE fms::
+  FILE fmsConfig.cmake)
