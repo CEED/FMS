@@ -22,6 +22,7 @@ project(FMS VERSION 0.1 LANGUAGES C)
 
 # Optional demo - see examples/README.md for more information
 option(ENABLE_DEMO "Enable the PUMI + MFEM demo" OFF)
+option(FMS_ENABLE_TESTS "Enable FMS testing" OFF)
 
 # Set a default configuration type
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -37,3 +38,12 @@ set(MFEM_DIR "" CACHE PATH "Path to the MFEM library.")
 
 # Examples subdirectory
 add_subdirectory(examples)
+
+# Tests/unit tests.
+if(FMS_ENABLE_TESTS)
+  # Include google test and turn on CMake testing
+  enable_testing()
+  enable_language(CXX)
+  add_subdirectory(thirdparty/googletest)
+  add_subdirectory(tests)
+endif()
