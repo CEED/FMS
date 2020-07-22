@@ -18,7 +18,7 @@
 cmake_minimum_required (VERSION 3.1)
 
 # Project name
-project(FMS VERSION 0.1 LANGUAGES C)
+project(FMS VERSION 0.1 LANGUAGES C CXX)
 
 # Optional demo - see examples/README.md for more information
 option(ENABLE_DEMO "Enable the PUMI + MFEM demo" OFF)
@@ -29,21 +29,70 @@ if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+# Setup thirdparty dependencies
+# Optional conduit implementation for IO functions
+if(CONDUIT_DIR)
+  find_package(Conduit 0.5.1 REQUIRED
+    HINTS ${CONDUIT_DIR}
+    NO_DEFAULT_PATH)
+  set(FMS_HAVE_CONDUIT TRUE)
+  message(STATUS "Using Conduit: ${Conduit_DIR}")
+endif()
+
+# For development of the fms-mfem library, will move eventually (still required by demo)
+if(MFEM_DIR)
+  find_package(mfem REQUIRED
+    NAMES MFEM
+    HINTS ${MFEM_DIR}
+    NO_DEFAULT_PATH)
+  set(FMS_HAVE_MFEM TRUE)
+  message(STATUS "Using MFEM: ${mfem_DIR}")
+endif()
+
+# The following are required for the example
+if(ENABLE_DEMO)
+  if(CMAKE_VERSION VERSION_LESS 3.10)
+    message(FATAL_ERROR "Building the demo requires CMake version 3.10 or later, please rerun cmake with ENABLE_DEMO=OFF")
+  endif()
+
+  find_package(MPI QUIET)
+  if(MPI_FOUND)
+    add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
+    # message(STATUS "Example using MPI_C: ${MPI_C_COMPILER}")
+    message(STATUS "Demo using MPI_CXX: ${MPI_CXX_COMPILER}")
+    set(FMS_HAVE_MPI TRUE)
+  endif()
+
+  if(PUMI_DIR)
+    find_package(SCOREC 2.1.0 REQUIRED 
+      CONFIG 
+      HINTS ${PUMI_DIR} 
+      NO_DEFAULT_PATH)
+    set(FMS_HAVE_PUMI TRUE)
+    message(STATUS "Demo PUMI: ${SCOREC_DIR}")
+  endif()
+endif()
+
+# Provides cache variables for install dirs
+include(GNUInstallDirs)
+
 # Source FMS directory
 add_subdirectory(src)
-
-# PUMI_DIR and MFEM_DIR are needed when ENABLE_DEMO=ON
-set(PUMI_DIR "" CACHE PATH "Path to the PUMI library.")
-set(MFEM_DIR "" CACHE PATH "Path to the MFEM library.")
 
 # Examples subdirectory
 add_subdirectory(examples)
 
+# Install fmsConfig.cmake
+configure_file(
+  ${CMAKE_SOURCE_DIR}/cmake/fmsConfig.cmake.in
+  ${CMAKE_BINARY_DIR}/fmsConfig.cmake
+  @ONLY)
+install(FILES ${CMAKE_BINARY_DIR}/fmsConfig.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms)
+
 # Tests/unit tests.
 if(FMS_ENABLE_TESTS)
-  # Include google test and turn on CMake testing
   enable_testing()
-  enable_language(CXX)
   set(INSTALL_GTEST OFF CACHE BOOL "Turn off GTest install")
   add_subdirectory(thirdparty/googletest)
   add_subdirectory(tests)

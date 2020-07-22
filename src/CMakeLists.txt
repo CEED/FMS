@@ -24,10 +24,34 @@ target_include_directories(fms PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
 
-include(GNUInstallDirs)
+# The IO functions will be optionally implemented with Conduit
+if(FMS_HAVE_CONDUIT)
+  target_link_libraries(fms PRIVATE conduit::conduit)
+  target_compile_definitions(fms PRIVATE FMS_HAVE_CONDUIT=1)
+endif()
+
+# Install main fms library
 install(TARGETS fms DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT fms)
 install(FILES ${FMS_HEADERS} DESTINATION include)
 install(EXPORT fms 
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms
   NAMESPACE fms::
-  FILE fmsConfig.cmake)
+  FILE fms.cmake)
+
+# Setup fms-mfem library which ultimately may not live in this repo
+# if(FMS_HAVE_MFEM)
+#   add_library(fms-mfem fms-mfem.cpp fms-mfem.h)
+#   set_property(TARGET fms-mfem PROPERTY CXX_STANDARD 11)
+#   target_include_directories(fms-mfem 
+#     PUBLIC
+#       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+#       $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include)
+#   target_link_libraries(fms-mfem PUBLIC mfem)
+
+#   install(TARGETS fms-mfem DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT fms-mfem)
+#   install(FILES fms-mfem.h DESTINATION include)
+#   install(EXPORT fms-fmem 
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms
+#     NAMESPACE fms::
+#     FILE fms-mfem.cmake)
+# endif()

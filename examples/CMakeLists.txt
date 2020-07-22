@@ -15,28 +15,14 @@
 # testbed platforms, in support of the nation's exascale computing imperative.
 
 if (ENABLE_DEMO)
-  if (NOT PUMI_DIR OR NOT MFEM_DIR)
+  if (NOT FMS_HAVE_PUMI OR NOT FMS_HAVE_MFEM OR NOT FMS_HAVE_MPI)
     message(FATAL_ERROR
             "PUMI_DIR and MFEM_DIR must be specified with ENABLE_DEMO=ON")
   endif()
-  # Set MPICXX directly to use an MPI-wrapper, e.g. -DMPICXX=mpicxx
-  if (MPICXX)
-    set(CMAKE_CXX_COMPILER ${MPICXX})
-    # Setting the variables below circumvents autodetection, see FindMPI.cmake.
-    set(MPI_CXX_INCLUDE_PATH "")
-    set(MPI_CXX_LIBRARIES "")
-  endif()
-  enable_language(CXX)
-  find_package(MPI REQUIRED)
-  find_package(SCOREC 2.1.0 REQUIRED CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
-  find_package(mfem REQUIRED NAMES MFEM HINTS "${MFEM_DIR}"
-               "${MFEM_DIR}/lib/cmake/mfem" NO_DEFAULT_PATH)
 
   add_executable(demo_pumi_mfem demo_pumi_mfem.cpp)
-  target_include_directories(demo_pumi_mfem PUBLIC ${MPI_CXX_INCLUDE_PATH}
-                             ${MFEM_INCLUDE_DIRS})
-  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem
-                        ${MPI_CXX_LIBRARIES})
+  target_include_directories(demo_pumi_mfem PUBLIC ${MFEM_INCLUDE_DIRS})
+  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem MPI::MPI_C)
 
   # Fetch and/or copy the data directory, if necessary
   add_custom_command(OUTPUT ${PROJECT_SOURCE_DIR}/data
