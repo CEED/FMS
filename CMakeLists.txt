@@ -60,15 +60,11 @@ if(FMS_ENABLE_DEMO)
     message(FATAL_ERROR "Building the demo requires CMake version 3.10 or later, please rerun cmake with FMS_ENABLE_DEMO=OFF")
   endif()
 
+  set(MPI_CXX_SKIP_MPICXX ON)
   find_package(MPI REQUIRED COMPONENTS C CXX)
   # message(STATUS "Demo using MPI_C: ${MPI_C_COMPILER}")
   message(STATUS "Demo using MPI_CXX: ${MPI_CXX_COMPILER}")
   set(FMS_HAVE_MPI TRUE)
-  # Looks like you don't need todo this if you link to MPI::MPI_CXX, but why even enable the C++ bindings?
-  if(MPI_MPICXX_FOUND)
-    message(STATUS "Disabling MPICXX bindings: -DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX")
-    add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
-  endif()
 
   if(PUMI_DIR)
     find_package(SCOREC 2.1.0 REQUIRED 
