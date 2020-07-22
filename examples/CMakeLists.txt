@@ -14,7 +14,7 @@
 # software, applications, hardware, advanced system engineering and early
 # testbed platforms, in support of the nation's exascale computing imperative.
 
-if (ENABLE_DEMO)
+if (FMS_ENABLE_DEMO)
   if (NOT FMS_HAVE_PUMI OR NOT FMS_HAVE_MFEM OR NOT FMS_HAVE_MPI)
     message(FATAL_ERROR
             "PUMI_DIR and MFEM_DIR must be specified with ENABLE_DEMO=ON")

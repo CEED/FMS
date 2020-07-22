@@ -18,11 +18,16 @@
 cmake_minimum_required (VERSION 3.1)
 
 # Project name
-project(FMS VERSION 0.1 LANGUAGES C CXX)
+project(FMS VERSION 0.1 LANGUAGES C)
 
 # Optional demo - see examples/README.md for more information
-option(ENABLE_DEMO "Enable the PUMI + MFEM demo" OFF)
+option(FMS_ENABLE_DEMO "Enable the PUMI + MFEM demo" OFF)
 option(FMS_ENABLE_TESTS "Enable FMS testing" OFF)
+
+# Demo and tests both require CXX
+if(FMS_ENABLE_DEMO OR FMS_ENABLE_TESTS)
+  enable_language(CXX)
+endif()
 
 # Set a default configuration type
 if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
