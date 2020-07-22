@@ -592,6 +592,16 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
     FmsMetaData md;
     FmsInt num_fds = 0, num_fields = 0;
     FmsInt i;
+    char *name = NULL;
+
+    /** NOTE: FmsDataCollection does not provide a method to get the name. We need one. */
+    if(FmsDataCollectionGetName(dc, &name) == 0)
+    {
+        char *n_key = join_keys(key, "Name");
+        err = (*io->add_string)(ctx, n_key, name);
+        if(err)
+            E_RETURN(1);
+    }
 
     if(FmsDataCollectionGetMesh(dc, &mesh) == 0)
     {
