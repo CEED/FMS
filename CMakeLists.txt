@@ -46,26 +46,28 @@ endif()
 
 # For development of the fms-mfem library, will move eventually (still required by demo)
 if(MFEM_DIR)
-  find_package(mfem REQUIRED
-    NAMES MFEM
+  find_package(MFEM REQUIRED
+    NAMES MFEM mfem
     HINTS ${MFEM_DIR}
     NO_DEFAULT_PATH)
   set(FMS_HAVE_MFEM TRUE)
-  message(STATUS "Using MFEM: ${mfem_DIR}")
+  message(STATUS "Using MFEM: ${MFEM_DIR}")
 endif()
 
 # The following are required for the example
 if(FMS_ENABLE_DEMO)
   if(CMAKE_VERSION VERSION_LESS 3.10)
-    message(FATAL_ERROR "Building the demo requires CMake version 3.10 or later, please rerun cmake with ENABLE_DEMO=OFF")
+    message(FATAL_ERROR "Building the demo requires CMake version 3.10 or later, please rerun cmake with FMS_ENABLE_DEMO=OFF")
   endif()
 
-  find_package(MPI QUIET)
-  if(MPI_FOUND)
+  find_package(MPI REQUIRED COMPONENTS C CXX)
+  # message(STATUS "Demo using MPI_C: ${MPI_C_COMPILER}")
+  message(STATUS "Demo using MPI_CXX: ${MPI_CXX_COMPILER}")
+  set(FMS_HAVE_MPI TRUE)
+  # Looks like you don't need todo this if you link to MPI::MPI_CXX, but why even enable the C++ bindings?
+  if(MPI_MPICXX_FOUND)
+    message(STATUS "Disabling MPICXX bindings: -DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX")
     add_definitions(-DOMPI_SKIP_MPICXX -DMPICH_SKIP_MPICXX)
-    # message(STATUS "Example using MPI_C: ${MPI_C_COMPILER}")
-    message(STATUS "Demo using MPI_CXX: ${MPI_CXX_COMPILER}")
-    set(FMS_HAVE_MPI TRUE)
   endif()
 
   if(PUMI_DIR)
@@ -74,7 +76,7 @@ if(FMS_ENABLE_DEMO)
       HINTS ${PUMI_DIR} 
       NO_DEFAULT_PATH)
     set(FMS_HAVE_PUMI TRUE)
-    message(STATUS "Demo PUMI: ${SCOREC_DIR}")
+    message(STATUS "Demo using PUMI: ${SCOREC_DIR}")
   endif()
 endif()
 

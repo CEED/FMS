@@ -22,15 +22,21 @@ if (FMS_ENABLE_DEMO)
 
   add_executable(demo_pumi_mfem demo_pumi_mfem.cpp)
   target_include_directories(demo_pumi_mfem PUBLIC ${MFEM_INCLUDE_DIRS})
-  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem MPI::MPI_C MPI::MPI_CXX)
+  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem MPI::MPI_C)
 
-  # Fetch and/or copy the data directory, if necessary
-  add_custom_command(OUTPUT ${PROJECT_SOURCE_DIR}/data
-    COMMAND git clone https://github.com/mfem/data.git data
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
-    COMMENT "Fetching MFEM-data from GitHub to the source tree ...")
+  # Fetch the data directory, if necessary
+  file(GLOB data_files "${PROJECT_SOURCE_DIR}/data/*")
+  list(LENGTH data_files num_files)
+  if(num_files EQUAL 0)
+    add_custom_command(OUTPUT ${PROJECT_SOURCE_DIR}/data
+      COMMAND git clone https://github.com/mfem/data.git data
+      WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+      COMMENT "Fetching MFEM-data from GitHub to the source tree ...")
+  endif()
   add_custom_target(fetch_data DEPENDS ${PROJECT_SOURCE_DIR}/data)
   add_dependencies(demo_pumi_mfem fetch_data)
+  
+  # Copy the data directory, if necessary
   if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
     add_custom_command(OUTPUT data_is_copied
       COMMAND ${CMAKE_COMMAND} -E copy_directory

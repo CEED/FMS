@@ -2,6 +2,7 @@
 // Demo: converting a mesh from PUMI to FMS to MFEM
 //
 
+#include <mpi.h>
 #include <fms.h>
 #include <apf.h>
 #include <apfMesh.h>
