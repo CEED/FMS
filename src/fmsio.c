@@ -96,8 +96,8 @@ typedef struct
     int (*end_list_item)(FmsIOContext *ctx);
 #endif
 
-    int (*add_int)(FmsIOContext *ctx, const char *path, int value);
-    int (*add_int_array)(FmsIOContext *ctx, const char *path, const int *values, size_t n);
+    int (*add_int)(FmsIOContext *ctx, const char *path, FmsInt value);
+    int (*add_int_array)(FmsIOContext *ctx, const char *path, const FmsInt *values, size_t n);
     int (*add_float)(FmsIOContext *ctx, const char *path, float value);
     int (*add_float_array)(FmsIOContext *ctx, const char *path, const float *values);
     int (*add_double)(FmsIOContext *ctx, const char *path, double value);
@@ -135,16 +135,16 @@ FmsIOClose(FmsIOContext *ctx)
 }
 
 static int
-FmsIOAddInt(FmsIOContext *ctx, const char *path, int value)
+FmsIOAddInt(FmsIOContext *ctx, const char *path, FmsInt value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-    fprintf(ctx->fp, "%s: %d\n", path, value);
+    fprintf(ctx->fp, "%s: %llu\n", path, value);
     return 0;
 }
 
 static int
-FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const int *values, size_t n)
+FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, size_t n)
 {
     size_t i;
     if(!ctx) E_RETURN(1);
@@ -154,18 +154,45 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const int *values, size_t 
     fprintf(ctx->fp, "%s: [", path);
     for(i = 0; i < n; ++i)
     {
-        fprintf(ctx->fp, "%d", values[i]);
+        fprintf(ctx->fp, "%llu", values[i]);
         if(i < n-1)
             fprintf(ctx->fp, ", ");
     }
     fprintf(ctx->fp, "]\n");
 #else
     /* Or should we make it a little simpler to read (write len)?*/
-    fprintf(ctx->fp, "%s: %d ", path, (int)n);
+    fprintf(ctx->fp, "%s: %llu ", path, n);
     for(i = 0; i < n; ++i)
-        fprintf(ctx->fp, "%d ", values[i]);
+        fprintf(ctx->fp, "%llu ", values[i]);
     fprintf(ctx->fp, "\n");
 #endif
+    return 0;
+}
+
+static int
+FmsIOAddFloat(FmsIOContext *ctx, const char *path, float value)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    fprintf(ctx->fp, "%s: %f\n", path, value);
+    return 0;
+}
+
+static int
+FmsIOAddDouble(FmsIOContext *ctx, const char *path, double value)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    fprintf(ctx->fp, "%s: %lg\n", path, value);
+    return 0;
+}
+
+static int
+FmsIOAddString(FmsIOContext *ctx, const char *path, const char *value)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    fprintf(ctx->fp, "%s: %s\n", path, value);
     return 0;
 }
 
@@ -222,6 +249,9 @@ FmsIOFunctionsInitialize(FmsIOFunctions *obj)
         obj->close = FmsIOClose;
         obj->add_int = FmsIOAddInt;
         obj->add_int_array = FmsIOAddIntArray;
+        obj->add_float = FmsIOAddFloat;
+        obj->add_double = FmsIOAddDouble;
+        obj->add_string = FmsIOAddString;
         /*...*/
         obj->get_int = FmsIOGetInt;
 #ifdef MEANDERING_THOUGHTS
@@ -278,12 +308,12 @@ FMSIOCloseConduit(FmsIOContext *ctx)
 }
 
 static int
-FmsIOAddIntConduit(FmsIOContext *ctx, const char *path, int value)
+FmsIOAddIntConduit(FmsIOContext *ctx, const char *path, FmsInt value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-    /* Make an int node under root. */
-    conduit_node_set_int(conduit_node_fetch(FmsIOContextCurrent(ctx), path), value);
+    /*conduit_node_set_path_int(ctx->root, path, value);*/
+    conduit_node_set_path_unsigned_long(ctx->root, path, value);
     return 0;
 }
 
@@ -293,19 +323,47 @@ FmsIOAddIntArrayConduit(FmsIOContext *ctx, const char *path, const int *values, 
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
     if(!values) E_RETURN(3);
-    /* Make an int array node under root. */
-    conduit_node_set_int_ptr(conduit_node_fetch(FmsIOContextCurrent(ctx), path), (int *)values, n);
+    /*conduit_node_set_path_int_ptr(ctx->root, path, (int *)values, n);*/
+    conduit_node_set_path_uint64_ptr(ctx->root, path, values, n);
+    return 0;
+}
+
+static int
+FmsIOAddFloatConduit(FmsIOContext *ctx, const char *path, float value)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    conduit_node_set_path_float(ctx->root, path, value);
+    return 0;
+}
+
+static int
+FmsIOAddDoubleConduit(FmsIOContext *ctx, const char *path, double value)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    conduit_node_set_path_double(ctx->root, path, value);
+    return 0;
+}
+
+static int
+FmsIOAddStringConduit(FmsIOContext *ctx, const char *path, const char *value)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    /*conduit_node_set_path_char8_str(ctx->root, path, value);*/
+    conduit_node_set_path_external_char8_str(ctx->root, path, value);
     return 0;
 }
 
 int
-FmsIOGetInt(FmsIOContext *ctx, const char *path, int *value)
+FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, int *value)
 {
     conduit_node *node = NULL;
     if(ctx) E_RETURN(1);
     if(path) E_RETURN(2);
     if(value) E_RETURN(3);
-    if((node = conduit_node_fetch(FmsIOContextCurrent(ctx), path)) != NULL)
+    if((node = conduit_node_fetch(ctx->root, path)) != NULL)
     {
         const conduit_datatype *dt = conduit_node_dtype(node);
         if(!dt)
@@ -462,6 +520,9 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj)
         obj->close = FmsIOCloseConduit;
         obj->add_int = FmsIOAddIntConduit;
         obj->add_int_array = FmsIOAddIntArrayConduit;
+        obj->add_float = FmsIOAddFloatConduit;
+        obj->add_double = FmsIOAddDoubleConduit;
+        obj->add_string = FmsIOAddStringConduit;
         /*...*/
         obj->get_int = FmsIOGetIntConduit;
 #ifdef MEANDERING_THOUGHTS
