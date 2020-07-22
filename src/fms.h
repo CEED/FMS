@@ -763,6 +763,17 @@ int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
                           const char *const **tag_descr, FmsInt *num_tags);
 
 /// TODO: dox
+/**
+@brief Get the name of the data collection.
+@param dc the data collection.
+@param[out] name A char pointer that will be set to point to the name string.
+           The name is owned by the data collection so it should not be 
+           freed or modified.
+@return 0 on success, non-zero otherwise.
+*/
+int FmsDataCollectionGetName(FmsDataCollection dc, char **name);
+
+/// TODO: dox
 int FmsDataCollectionGetMesh(FmsDataCollection dc, FmsMesh *mesh);
 
 /// TODO: dox
