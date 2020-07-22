@@ -55,7 +55,7 @@ if(MFEM_DIR)
 endif()
 
 # The following are required for the example
-if(ENABLE_DEMO)
+if(FMS_ENABLE_DEMO)
   if(CMAKE_VERSION VERSION_LESS 3.10)
     message(FATAL_ERROR "Building the demo requires CMake version 3.10 or later, please rerun cmake with ENABLE_DEMO=OFF")
   endif()

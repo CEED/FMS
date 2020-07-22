@@ -1,4 +1,4 @@
-# Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
+# Copyright (c) 2020, Lawrence Livermore National Security, LLC. Produced at
 # the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
 # reserved. See files LICENSE and NOTICE for details.
 #
@@ -17,12 +17,12 @@
 if (FMS_ENABLE_DEMO)
   if (NOT FMS_HAVE_PUMI OR NOT FMS_HAVE_MFEM OR NOT FMS_HAVE_MPI)
     message(FATAL_ERROR
-            "PUMI_DIR and MFEM_DIR must be specified with ENABLE_DEMO=ON")
+            "PUMI_DIR and MFEM_DIR must be specified with FMS_ENABLE_DEMO=ON")
   endif()
 
   add_executable(demo_pumi_mfem demo_pumi_mfem.cpp)
   target_include_directories(demo_pumi_mfem PUBLIC ${MFEM_INCLUDE_DIRS})
-  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem MPI::MPI_C)
+  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem MPI::MPI_C MPI::MPI_CXX)
 
   # Fetch and/or copy the data directory, if necessary
   add_custom_command(OUTPUT ${PROJECT_SOURCE_DIR}/data

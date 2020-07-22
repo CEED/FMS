@@ -35,8 +35,8 @@ And finally, build FMS and the demo:
 ```console
 mkdir build
 cd build
-cmake .. -DENABLE_DEMO=ON -DMPICXX=mpicxx \
-  -DPUMI_DIR=../../pumi-install -DMFEM_DIR=../../mfem-install
+cmake .. -DFMS_ENABLE_DEMO=ON -DMPICXX=mpicxx \
+  -DPUMI_DIR=$(pwd)/../../pumi-install -Dmfem_DIR=$(pwd)/../../mfem-install
 make
 cd examples
 ./demo_pumi_mfem

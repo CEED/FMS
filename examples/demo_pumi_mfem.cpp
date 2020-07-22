@@ -16,8 +16,13 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <limits.h>
 #include <mfem.hpp>
 
+#define TEST_FMSIO
+#ifdef TEST_FMSIO
+#include <fmsio.h>
+#endif
 
 void TestMakeFmsQuadMesh(FmsDataCollection *dc_ptr);
 void TestMakeFmsTetMesh(FmsDataCollection *dc_ptr);
@@ -362,6 +367,14 @@ int main(int argc, char *argv[]) {
   // TestFmsToMfem(tet_dc);
   // TestFmsToMfem(hex_dc);
   TestFmsToMfem(CrdFieldDataCol);
+
+#ifdef TEST_FMSIO
+  const char *protocol = "ascii";
+  FmsIOWrite("quad.fms", protocol, quad_dc);
+  FmsIOWrite("tet.fms", protocol, tet_dc);
+  FmsIOWrite("hex.fms", protocol, hex_dc);
+  FmsIOWrite("CrdFieldDataCol.fms", protocol, CrdFieldDataCol);
+#endif
 
   // Clean-up
 
