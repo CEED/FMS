@@ -135,6 +135,9 @@ FmsIOClose(FmsIOContext *ctx)
     return 0;
 }
 
+/**
+NOTE: These functions are where we can control what the ASCII file format looks like
+*/
 static int
 FmsIOAddInt(FmsIOContext *ctx, const char *path, FmsInt value)
 {
@@ -170,6 +173,18 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, size
     return 0;
 }
 
+
+/**
+NOTE: This function is needed since for metadata we're given void* data with an enum that describes the type.
+      In our ascii format, do we want to consider adding the types to make it unambiguous when we read back?
+
+      If we added the type as a comment at the end, it would still be valid YAML.
+
+      key1: value                             # string
+      key2/path/to/something: "blah"          # string
+      key2/path/to/other: 1.2345              # float
+      key2/path/to/other2: [0,1,2,3,4,5,6]    # int
+*/
 static int
 FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, size_t n)
 {
