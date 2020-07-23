@@ -71,6 +71,10 @@ int main(int argc, const char *argv[]) {
   const int material_tags[] = {1};
   FmsTagSet(material, FMS_INT32, FMS_INT32, material_tags, 1);
 
+  int tvs[1] = {1};
+  const char * const descriptions[] = {"Test"};
+  FmsTagAddDescriptions(material, FMS_INT32, tvs, descriptions, 1);
+
   // Finalize the construction of the Mesh object
   FmsMeshFinalize(mesh);
   // Perform some consistency checks.
