@@ -155,6 +155,17 @@ const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES] = {
   1, 2, 4, 8, 1, 2, 4, 8
 };
 
+const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES] = {
+  "FMS_VERTEX",
+  "FMS_EDGE",
+  "FMS_TRIANGLE",
+  "FMS_QUADRILATERAL",
+  "FMS_TETRAHEDRON",
+  "FMS_HEXAHEDRON",
+  "FMS_WEDGE",
+  "FMS_PYRAMID"
+};
+
 const FmsInt FmsEntityDim[FMS_NUM_ENTITY_TYPES] = {
   0, 1, 2, 2, 3, 3, 3, 3
 };
