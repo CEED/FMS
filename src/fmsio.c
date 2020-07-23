@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #ifdef FMS_HAVE_CONDUIT
 #include <conduit.h>
@@ -142,7 +143,11 @@ FmsIOAddInt(FmsIOContext *ctx, const char *path, FmsInt value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
+#if UINT_MAX == ULONG_MAX
     fprintf(ctx->fp, "%s: %llu\n", path, value);
+#else
+    fprintf(ctx->fp, "%s: %lu\n", path, value);
+#endif
     return 0;
 }
 
@@ -157,7 +162,11 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, size
     fprintf(ctx->fp, "%s: [", path);
     for(i = 0; i < n; ++i)
     {
+#if UINT_MAX == ULONG_MAX
         fprintf(ctx->fp, "%llu", values[i]);
+#else
+        fprintf(ctx->fp, "%lu", values[i]);
+#endif
         if(i < n-1)
             fprintf(ctx->fp, ", ");
     }
@@ -734,6 +743,388 @@ join_keys(const char *k1, const char *k2)
     return str;
 }
 
+static int
+FmsIOWriteFmsDomain(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
+    FmsDomain dom)
+{
+    FmsInt dim = 0;
+    if(FmsDomainGetDimension(dom, &dim))
+        E_RETURN(1);
+    char *kdim = join_keys(key, "Dimension");
+    (io->add_int)(ctx, kdim, dim);
+    FREE(kdim);
+
+    FmsInt nverts = 0;
+    if(FmsDomainGetNumVertices(dom, &nverts))
+        E_RETURN(2);
+    char *knverts = join_keys(key, "NumVertices");
+    (io->add_int)(ctx, knverts, nverts);
+    FREE(knverts);
+
+    // Skip verticies because we already know what we need to know
+    char *kentities = join_keys(key, "Entities");
+    FmsInt i, entries = 0;
+    for(i = 1; i < FMS_NUM_ENTITY_TYPES; i++)
+    {
+        FmsInt nents = 0;
+        FmsDomainGetNumEntities(dom, (FmsEntityType)i, &nents);
+        if(nents)
+        {
+            char temp[8];
+            sprintf(temp, "%d", (int)entries++);
+            char *kentry = join_keys(kentities, temp);
+            const char *enttype = FmsEntityTypeNames[i];
+            char *kenttype = join_keys(kentry, "EntityType");
+            (*io->add_string)(ctx, kenttype, enttype);
+            FREE(kenttype);
+
+            char *kne = join_keys(kentry, "NumEntities");
+            (*io->add_int)(ctx, kne, nents);
+            FREE(kne);
+
+            FmsIntType idtype;
+            const void *ents = NULL;
+            FmsInt ne = 0;
+            if(FmsDomainGetAllEntities(dom, (FmsEntityType)i, 
+                &idtype, &ents, &ne))
+            {
+                FREE(kentry); E_RETURN(3);
+            }
+
+            if(ents == NULL)
+            {
+                FREE(kentry); E_RETURN(4);
+            }
+
+            // TODO: Remove this check
+            if(nents != ne)
+            {
+                FREE(kentry); E_RETURN(5);
+            }
+
+            const FmsInt N = FmsEntityNumSides[i] * nents;
+            (*io->add_typed_int_array)(ctx, kentry, idtype, ents, N);
+            FREE(kentry);
+        }
+    }
+    FREE(kentities);
+    // Q: Do we even have to store the orientations? Fms converts everything to standard Fms orientation in memeory.
+    return 0;
+#if 0
+/// Return the name and id of a mesh domain.
+int FmsDomainGetName(FmsDomain domain, const char **domain_name,
+                     FmsInt *domain_id);
+
+/// Return the highest dimension of an entry in a mesh domain.
+int FmsDomainGetDimension(FmsDomain domain, FmsInt *dim);
+
+/// Get the number of vertices in a domain.
+int FmsDomainGetNumVertices(FmsDomain domain, FmsInt *num_verts);
+
+/// Get the number of entities of a given type in a domain.
+int FmsDomainGetNumEntities(FmsDomain domain, FmsEntityType type,
+                            FmsInt *num_ents);
+
+/// TODO: dox
+/// No copy, read only access to all entity definitions.
+int FmsDomainGetAllEntities(FmsDomain domain, FmsEntityType type,
+                            FmsIntType *ent_id_type, const void **ents,
+                            FmsInt *num_ents);
+
+/// TODO: dox
+/// Extract a subset of the entity definitions.
+int FmsDomainGetEntities(FmsDomain domain, FmsEntityType type,
+                         FmsEntityReordering reordering, FmsIntType ent_id_type,
+                         FmsInt first_ent, void *ents, FmsInt num_ents);
+
+/// TODO: dox
+/// Extract a subset of the entity definitions in terms of their vertices.
+int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
+                              FmsEntityReordering vert_reordering,
+                              FmsIntType ent_id_type, FmsInt first_ent,
+                              void *ents_verts, FmsInt num_ents);
+
+/// TODO: dox
+/// No copy, read only access to all entity side orientations.
+int FmsDomainGetAllOrientations(FmsDomain domain, FmsEntityType type,
+                                const FmsOrientation **side_orients,
+                                FmsInt *num_ents);
+#endif
+}
+
+static int
+FmsIOWriteDomains(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
+    FmsMesh mesh, FmsInt di)
+{
+    const char *domname = NULL;
+    FmsInt ndoms = 0;
+    FmsDomain *doms = NULL;
+    if(FmsMeshGetDomains(mesh, di, &domname, &ndoms, &doms))
+        E_RETURN(1);
+
+    if(!domname)
+        E_RETURN(2);
+    char *kdname = join_keys(key, "Name");
+    (*io->add_string)(ctx, kdname, domname);
+    FREE(kdname);
+
+    char *knd = join_keys(key, "NumDomains");
+    (*io->add_int)(ctx, knd, ndoms);
+    FREE(knd);
+
+    char *kdoms = join_keys(key, "Domains");
+    FmsInt i;
+    for(i = 0; i < ndoms; i++)
+    {
+        char tmp[20], *kd = NULL;
+        sprintf(tmp, "%d", (int)i);
+        kd = join_keys(kdoms, tmp);
+        FmsIOWriteFmsDomain(ctx, io, kd, doms[i]);
+        FREE(kd);
+    }
+    FREE(kdoms);
+    return 0;
+#if 0
+/// TODO: dox
+int FmsMeshGetDomains(FmsMesh mesh, FmsInt domain_name_id,
+                      const char **domain_name, FmsInt *num_domains,
+                      FmsDomain **domains);
+#endif
+}
+
+/**
+@brief Write FmsMesh to the output I/O context.
+@param ctx The context
+@param io  The I/O functions that operate on the context.
+@param key The key that identifies the data in the output.
+@param comp  The FMS component.
+@return 0 on success, non-zero otherwise.
+*/
+static int
+FmsIOWriteComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsComponent comp)
+{
+    const char *comp_name = NULL;
+    if(FmsComponentGetName(comp, &comp_name))
+        E_RETURN(1);
+    char *kcomp_name = join_keys(key, "Name");
+    (*io->add_string)(ctx, kcomp_name, comp_name);
+    FREE(kcomp_name);
+
+    FmsInt dim = 0;
+    if(FmsComponentGetDimension(comp, &dim))
+        E_RETURN(2);
+    char *kdim = join_keys(key, "Dimension");
+    (*io->add_int)(ctx, kdim, dim);
+    FREE(kdim);
+
+    FmsInt nents = 0;
+    if(FmsComponentGetNumEntities(comp, &nents))
+        E_RETURN(3);
+    char *knents = join_keys(key, "NumEntities");
+    FREE(knents);
+
+    FmsField coords = NULL;
+    if(FmsComponentGetCoordinates(comp, &coords))
+        E_RETURN(4);
+    // Coords can be null
+    if(coords)
+    {
+        const char *coords_name = NULL;
+        FmsFieldGetName(coords, &coords_name);
+        char *kcoords_name = join_keys(key, "Coordinates");
+        (*io->add_string)(ctx, kcoords_name, coords_name);
+        FREE(kcoords_name);
+    }
+
+    FmsInt nparts = 0;
+    if(FmsComponentGetNumParts(comp, &nparts))
+        E_RETURN(5);
+    char *knparts = join_keys(key, "NumParts");
+    (*io->add_int)(ctx, knparts, nparts);
+    FREE(knparts);
+
+    char *kparts = join_keys(key, "Parts");
+    FmsInt i;
+    for(i = 0; i < nparts; i++)
+    {
+        char temp[20], *kpart;
+        sprintf(temp, "%d", (int)i);
+        kpart = join_keys(kparts, temp);
+        FmsDomain dom;
+        if(FmsComponentGetPart(comp, i, 0, &dom, NULL, NULL, NULL, NULL))
+            E_RETURN(6);
+
+        if(dom)
+        {
+            const char *domain_name = NULL;
+            FmsInt did = 0;
+            if(FmsDomainGetName(dom, &domain_name, &did))
+                E_RETURN(7);
+            
+            char *kdomain_name = join_keys(kpart, "DomainName");
+            (*io->add_string)(ctx, kdomain_name, domain_name);
+            FREE(kdomain_name);
+
+            char *kdid = join_keys(kpart, "DomainID");
+            (*io->add_int)(ctx, kdid, did);
+            FREE(kdid);
+        }
+        
+        char found = 0;
+        FmsInt et;
+        for(et = 0; et < FMS_NUM_ENTITY_TYPES; et++)
+        {
+            FmsIntType ent_id_type;
+            const void *ents;
+            FmsInt nents = 0;
+            // Q: Doing the for loop like this should pickup all the local indexing too?
+            //  FmsComponentGetPart and FmsComponentGetPartSubEntities index into the same arrays.
+            if(FmsComponentGetPart(comp, i, (FmsEntityType)et, 
+                NULL, &ent_id_type, &ents, NULL, &nents))
+                E_RETURN(8);
+            // NULL means use all entities in that domain
+            if(ents && nents)
+            {
+                found = 1;
+                const char *enttype = FmsEntityTypeNames[et];
+                if(FmsEntityDim[et] == dim)
+                {
+                    char *kenttype = join_keys(kpart, "PartEntityType");
+                    (*io->add_string)(ctx, kenttype, enttype);
+                    FREE(kenttype);
+                }
+                char *k = join_keys(kpart, enttype);
+                
+                char *knents = join_keys(k, "NumEntities");
+                (*io->add_int)(ctx, knents, nents);
+                FREE(knents);
+
+                const FmsInt N = FmsEntityNumSides[et] * nents;
+                (*io->add_typed_int_array)(ctx, k, ent_id_type, ents, N);
+                FREE(k);
+            }
+        }
+        // "Typically, the whole is represented by a special component of all elements (3-entities) on all domains."
+        if(!found)
+        {
+            char *kfull_domain = join_keys(kpart, "FullDomain");
+            (*io->add_string)(ctx, kfull_domain, "Yes");
+            FREE(kfull_domain);            
+        }
+        FREE(kpart);
+    }
+    FREE(kparts);
+
+    const FmsInt *rel_comps = NULL;
+    FmsInt nrelcomps = 0;
+    if(FmsComponentGetRelations(comp, &rel_comps, &nrelcomps))
+        E_RETURN(9);
+    
+
+    char *krelations = join_keys(key, "Relations");
+    (*io->add_int_array)(ctx, krelations, rel_comps, nrelcomps);
+    FREE(krelations);
+
+    return 0;
+#if 0
+
+/// TODO: dox
+int FmsComponentGetRelations(FmsComponent comp, const FmsInt **rel_comps,
+                             FmsInt *num_rel_comps);
+
+/// Return the coordinates field of a component.
+/** Note that the returned FmsField, @a *coords, can be NULL. */
+int FmsComponentGetCoordinates(FmsComponent comp, FmsField *coords);
+#endif
+}
+
+/**
+@brief Write FmsMesh to the output I/O context.
+@param ctx The context
+@param io  The I/O functions that operate on the context.
+@param key The key that identifies the data in the output.
+@param tag  The FMS tag.
+@return 0 on success, non-zero otherwise.
+*/
+static int
+FmsIOWriteTag(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsTag tag)
+{
+    const char *tag_name = NULL;
+    if(FmsTagGetName(tag, &tag_name))
+        E_RETURN(1);
+    char *ktag_name = join_keys(key, "TagName");
+    (*io->add_string)(ctx, ktag_name, tag_name);
+    FREE(ktag_name);
+
+    FmsComponent comp;
+    if(FmsTagGetComponent(tag, &comp))
+        E_RETURN(2);
+    const char *comp_name = NULL;
+    if(FmsComponentGetName(comp, &comp_name))
+        E_RETURN(3);
+    char *kcomp = join_keys(key, "Component");
+    (*io->add_string)(ctx, kcomp, comp_name);
+    FREE(kcomp);
+
+    FmsIntType tag_type;
+    const void *ent_tags = NULL;
+    FmsInt ntags = 0;
+    if(FmsTagGet(tag, &tag_type, &ent_tags, &ntags))
+        E_RETURN(4);
+    
+    (*io->add_typed_int_array)(ctx, key, tag_type, ent_tags, ntags);
+
+
+    const void *tagvalues = NULL;
+    const char * const *descriptions = NULL;
+    if(FmsTagGetDescriptions(tag, NULL, &tagvalues, &descriptions, &ntags))
+        E_RETURN(5);
+    char *kdescriptions = join_keys(key, "Descriptions");
+    FmsInt i;
+    for(i = 0; i < ntags; i++)
+    {
+        char temp[20], *kd;
+        switch(tag_type)
+        {
+        #define templated_cast(T)           \
+            const T *tvs = (const T*)tagvalues;   \
+            sprintf(temp, "%d", (int)tvs[i]); 
+
+            case FMS_INT8:   { templated_cast(int8_t); break; }
+            case FMS_INT16:  { templated_cast(int16_t); break; }
+            case FMS_INT32:  { templated_cast(int32_t); break; }
+            case FMS_INT64:  { templated_cast(int64_t); break; }
+            case FMS_UINT8:  { templated_cast(uint8_t); break; }
+            case FMS_UINT16: { templated_cast(uint16_t); break; }
+            case FMS_UINT32: { templated_cast(uint32_t); break; }
+            case FMS_UINT64: { templated_cast(uint64_t); break; }
+            default: E_RETURN(6);
+        #undef templated_cast
+        }
+        kd = join_keys(kdescriptions, temp);
+        (*io->add_string)(ctx, kd, descriptions[i]);
+    }
+
+
+
+    return 0;
+#if 0
+
+/// TODO: dox
+/// No copy, read only access to the entity-tag array.
+int FmsTagGet(FmsTag tag, FmsIntType *tag_type, const void **ent_tags,
+              FmsInt *num_ents);
+
+/// TODO: dox
+/** The arrays @a tags and @a tag_descr have the same size, @a num_tags.
+
+    The @a tag_type is the type of the entries in the @a tags array. */
+int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
+                          const char *const **tag_descr, FmsInt *num_tags);
+#endif
+}
+
+
 /**
 @brief Write FmsMesh to the output I/O context.
 @param ctx The context
@@ -745,8 +1136,107 @@ join_keys(const char *k1, const char *k2)
 static int
 FmsIOWriteFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsMesh mesh)
 {
-    /** TODO: write me */
+    /** IDEA: Come back and just reuse one char (stack?) buffer for all these keys? */
+    FmsInt pinfo[2];
+    if(FmsMeshGetPartitionId(mesh, &pinfo[0], &pinfo[1]))
+        E_RETURN(1);
+    
+    char *kpinfo = join_keys(key, "PartitionInfo");
+    (*io->add_int_array)(ctx, kpinfo, pinfo, 2);
+    FREE(kpinfo);
+
+    FmsInt ndnames = 0;
+    if(FmsMeshGetNumDomainNames(mesh, &ndnames))
+        E_RETURN(2);
+
+    char *kndnames = join_keys(key, "NumDomainNames");
+    (*io->add_int)(ctx, kndnames, ndnames);
+    FREE(kndnames);
+
+    FmsInt ncomps = 0;
+    if(FmsMeshGetNumComponents(mesh, &ncomps))
+        E_RETURN(3);
+    char *kncomps = join_keys(key, "NumComponents");
+    (*io->add_int)(ctx, kncomps, ncomps);
+    FREE(kncomps);
+
+    FmsInt ntags = 0;
+    if(FmsMeshGetNumTags(mesh, &ntags))
+        E_RETURN(4);
+    char *kntags = join_keys(key, "NumTags");
+    (*io->add_int)(ctx, kntags, ntags);
+    FREE(kntags);
+
+    char *kdom_names = join_keys(key, "DomainNames");
+    FmsInt i;
+    for(i = 0; i < ndnames; i++)
+    {
+        char tmp[20], *dk = NULL;
+        sprintf(tmp, "%d", (int)i);
+        dk = join_keys(kdom_names, tmp);
+        FmsIOWriteDomains(ctx, io, dk, mesh, i);
+        FREE(dk);
+    }
+    FREE(kdom_names);
+
+    char *kcomps = join_keys(key, "Components");
+    for(i = 0; i < ncomps; i++)
+    {
+        char tmp[20], *kc = NULL;
+        FmsComponent comp;
+        if(FmsMeshGetComponent(mesh, i, &comp))
+            E_RETURN(7);
+
+        if(!comp)
+            E_RETURN(8);
+
+        sprintf(tmp, "%d", (int)i);
+        kc = join_keys(kcomps, tmp);
+        FmsIOWriteComponent(ctx, io, kc, comp);
+        FREE(kc);
+    }
+    FREE(kcomps);
+
+    char *ktags = join_keys(key, "Tags");
+    for(i = 0; i < ntags; i++)
+    {
+        char tmp[20], *kt;
+        FmsTag t;
+        if(FmsMeshGetTag(mesh, i, &t))
+            E_RETURN(9);
+
+        sprintf(tmp, "%d", (int)i);
+        kt = join_keys(ktags, tmp);
+        FmsIOWriteTag(ctx, io, kt, t);
+        FREE(kt);
+    }
+    FREE(ktags);
+
     return 0;
+#if 0
+/// TODO: dox
+int FmsMeshGetPartitionId(FmsMesh mesh, FmsInt *partition_id,
+                          FmsInt *num_partitions);
+
+/// TODO: dox
+int FmsMeshGetNumDomainNames(FmsMesh mesh, FmsInt *num_domain_names);
+
+/// TODO: dox
+int FmsMeshGetDomainsByName(FmsMesh mesh, const char *domain_name,
+                            FmsInt *num_domains, FmsDomain **domains);
+
+/// TODO: dox
+int FmsMeshGetNumComponents(FmsMesh mesh, FmsInt *num_comp);
+
+/// TODO: dox
+int FmsMeshGetComponent(FmsMesh mesh, FmsInt comp_id, FmsComponent *comp);
+
+/// TODO: dox
+int FmsMeshGetNumTags(FmsMesh mesh, FmsInt *num_tags);
+
+/// TODO: dox
+int FmsMeshGetTag(FmsMesh mesh, FmsInt tag_id, FmsTag *tag);
+#endif
 }
 
 /**
@@ -876,8 +1366,9 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
     (*io->add_int)(ctx, klt, (FmsInt)lt);
     FREE(klt);
 
-    char *ldt = join_keys(key, "DataType");
-    (*io->add_int)(ctx, klt, (FmsInt)dt);
+    char *kdt = join_keys(key, "DataType");
+    (*io->add_int)(ctx, kdt, (FmsInt)dt);
+    FREE(kdt);
 
     char *kdata = join_keys(key, "Data");
     switch(dt)
@@ -894,8 +1385,12 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
             // E_RETURN(3);
             break;
     }
-
-    // What is in the MetaData??
+    FREE(kdata);
+    /* NOTES:
+        1. What is in the MetaData?
+        2. If each field points to a field descriptor - do should I write FieldDescriptors here?
+            * Maybe multiple fields can point to the same FieldDescriptor in which case 
+                I should just write them seperate and refer to them. */
 
 #if 0
 /// TODO: dox
