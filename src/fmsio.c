@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_CONDUIT
+#ifdef FMS_HAVE_CONDUIT
 #include <conduit.h>
 #endif
 
@@ -61,7 +61,7 @@ Data structures.
 */
 typedef struct
 {
-#ifdef HAVE_CONDUIT
+#ifdef FMS_HAVE_CONDUIT
     /* Conduit C-API*/
     conduit_node *root;
 
@@ -73,9 +73,8 @@ typedef struct
     char *protocol;
     int   writing;
     
-#else
-    FILE *fp;
 #endif
+    FILE *fp;
 } FmsIOContext;
 
 typedef struct
@@ -97,12 +96,12 @@ typedef struct
 #endif
 
     int (*add_int)(FmsIOContext *ctx, const char *path, FmsInt value);
-    int (*add_int_array)(FmsIOContext *ctx, const char *path, const FmsInt *values, size_t n);
+    int (*add_int_array)(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsInt n);
     int (*add_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, size_t n);
     int (*add_float)(FmsIOContext *ctx, const char *path, float value);
-    int (*add_float_array)(FmsIOContext *ctx, const char *path, const float *values);
+    int (*add_float_array)(FmsIOContext *ctx, const char *path, const float *values, FmsInt n);
     int (*add_double)(FmsIOContext *ctx, const char *path, double value);
-    int (*add_double_array)(FmsIOContext *ctx, const char *path, const double *value, size_t n);
+    int (*add_double_array)(FmsIOContext *ctx, const char *path, const double *value, FmsInt n);
     int (*add_string)(FmsIOContext *ctx, const char *path, const char *value);
     int (*add_string_array)(FmsIOContext *ctx, const char *path, const char **value, size_t n);
 
@@ -405,7 +404,7 @@ FmsIOFunctionsInitialize(FmsIOFunctions *obj)
 /*****************************************************************************
 *** FMS I/O Functions for Conduit
 *****************************************************************************/
-#ifdef HAVE_CONDUIT
+#ifdef FMS_HAVE_CONDUIT
 static int
 FmsIOOpenConduit(FmsIOContext *ctx, const char *filename, const char *mode)
 {
@@ -763,8 +762,69 @@ FmsIOWriteFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *
     FmsFieldDescriptor fd)
 {
     /** TODO: write me */
+
+    // Write the fd's name
+    const char *fd_name = NULL;
+    if(FmsFieldDescriptorGetName(fd, &fd_name))
+        E_RETURN(1);
+
+    char *key_name = join_keys(key, "Name");
+    (*io->add_string)(ctx, key_name, fd_name);
+    FREE(key_name);
+
+    // Write which compoenent the fd refers to    
+    FmsComponent fc = NULL;
+    if(FmsFieldDescriptorGetComponent(fd, &fc))
+        E_RETURN(2);
+
+    // Q: Do FieldDescriptors ALWAYS refer to a component?
+    if(!fc)
+        E_RETURN(3);
+
+    const char *fc_name = NULL;
+    if(FmsComponentGetName(fc, &fc_name))
+        E_RETURN(4);
+
+    char *key_fc_name = join_keys(key, "ComponentName");
+    (*io->add_string)(ctx, key_fc_name, fc_name);
+    FREE(key_fc_name);
+    
+    // Write fd type
+    FmsFieldDescriptorType fd_type;
+    if(FmsFieldDescriptorGetType(fd, &fd_type))
+    {
+        E_RETURN(5);
+    }
+
+    char *kfd_type = join_keys(key, "Type");
+    (*io->add_int)(ctx, kfd_type, (int)fd_type);
+    FREE(kfd_type);
+
+    // Write fd fixed order
+    FmsFieldType field_type;
+    FmsBasisType basis_type;
+    FmsInt fo[3];
+    if(FmsFieldDescriptorGetFixedOrder(fd, &field_type, &basis_type, &fo[2]))
+        E_RETURN(6);
+    fo[0] = (FmsInt)field_type; fo[1] = (FmsInt)basis_type;
+
+    char *kfield_type = join_keys(key, "FixedOrder");
+    (*io->add_int_array)(ctx, kfield_type, fo, 3);
+    FREE(kfield_type);
+
+    // Write fd num dofs
+    FmsInt ndofs = 0;
+    if(FmsFieldDescriptorGetNumDofs(fd, &ndofs))
+        E_RETURN(7);
+    
+    char *kndofs = join_keys(key, "NumDofs");
+    (*io->add_int)(ctx, kndofs, ndofs);
+    FREE(kndofs);
 #if 0
-    /// TODO: dox
+/// TODO: dox
+int FmsFieldDescriptorGetName(FmsFieldDescriptor fd, const char **fd_name);
+
+/// TODO: dox
 int FmsFieldDescriptorGetComponent(FmsFieldDescriptor fd, FmsComponent *comp);
 
 /// TODO: dox
@@ -796,6 +856,59 @@ static int
 FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsField field)
 {
     /** TODO: write me */
+
+    const char *field_name;
+    if(FmsFieldGetName(field, &field_name))
+        E_RETURN(1);
+    
+    char *kfield_name = join_keys(key, "Name");
+    (*io->add_string)(ctx, kfield_name, field_name);
+    FREE(kfield_name);
+
+    FmsFieldDescriptor fd = NULL;
+    FmsInt num_vec_comp =  0;
+    FmsLayoutType lt; FmsScalarType dt;
+    const void *data;
+    if(FmsFieldGet(field, &fd, &num_vec_comp, &lt, &dt, &data))
+        E_RETURN(2);
+    
+    char *klt = join_keys(key, "LayoutType");
+    (*io->add_int)(ctx, klt, (FmsInt)lt);
+    FREE(klt);
+
+    char *ldt = join_keys(key, "DataType");
+    (*io->add_int)(ctx, klt, (FmsInt)dt);
+
+    char *kdata = join_keys(key, "Data");
+    switch(dt)
+    {
+        case FMS_FLOAT:
+            // (*io->add_float_array)(ctx, kdata, (float*)data, num_vec_comp);
+            // break;
+        case FMS_DOUBLE:
+            // (*io->add_double_array)(ctx, kdata, (double*)data, num_vec_comp);
+            // break;
+        case FMS_COMPLEX_FLOAT:
+        case FMS_COMPLEX_DOUBLE:
+        default:
+            // E_RETURN(3);
+            break;
+    }
+
+    // What is in the MetaData??
+
+#if 0
+/// TODO: dox
+int FmsFieldGetName(FmsField field, const char **field_name);
+
+/// TODO: dox
+int FmsFieldGet(FmsField field, FmsFieldDescriptor *fd, FmsInt *num_vec_comp,
+                FmsLayoutType *layout_type, FmsScalarType *data_type,
+                const void **data);
+
+/// TODO: dox
+int FmsFieldGetMetaData(FmsField field, FmsMetaData *mdata);
+#endif
     return 0;
 }
 
@@ -977,15 +1090,18 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
     if(FmsDataCollectionGetMetaData(dc, &md) == 0)
     {
-        char *md_key = join_keys(key, "MetaData");
-        err = FmsIOWriteFmsMetaData(ctx, io, md_key, md);
-        FREE(md_key);
-        if(err)
-            E_RETURN(9);
+        if(md)
+        {
+            char *md_key = join_keys(key, "MetaData");
+            err = FmsIOWriteFmsMetaData(ctx, io, md_key, md);
+            FREE(md_key);
+            if(err)
+                E_RETURN(10);
+        }
     }
     else
     {
-        E_RETURN(10);
+        E_RETURN(11);
     }
 
     return 0;
@@ -1012,7 +1128,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc)
     if(filename == NULL) E_RETURN(1);
     if(protocol == NULL) E_RETURN(2);
 
-#ifdef HAVE_CONDUIT
+#ifdef FMS_HAVE_CONDUIT
     /* Conduit has a function to enumerate its protocols that it supports. Use that later. */
     if(strcmp(protocol, "json") == 0 ||
        strcmp(protocol, "yaml") == 0 ||
@@ -1071,7 +1187,7 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
     if(!protocol) E_RETURN(2);
     if(!dc) E_RETURN(3);
 
-#ifdef HAVE_CONDUIT
+#ifdef FMS_HAVE_CONDUIT
     /* Conduit has a function to enumerate its protocols that it supports. Use that later. */
     if(strcmp(protocol, "json") == 0 ||
        strcmp(protocol, "yaml") == 0 ||
