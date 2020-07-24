@@ -35,30 +35,22 @@
 #define FMS_ELE_PER_LINE 3u
 
 #if UINT_MAX == ULONG_MAX
-#define FMS_USE_LL 1
+#define FMS_LD "%lld"
+#define FMS_LU "%llu"
+#else
+#define FMS_LD "%ld"
+#define FMS_LU "%lu"
 #endif
 
-#ifdef FMS_USE_LL
 #define FOR_EACH_INT_TYPE(macro)            \
     macro(FMS_INT8, int8_t,     "%d")       \
     macro(FMS_INT16, int16_t,   "%d")       \
     macro(FMS_INT32, int32_t,   "%d")       \
-    macro(FMS_INT64, int64_t,   "%ld")      \
+    macro(FMS_INT64, int64_t,   FMS_LD)    \
     macro(FMS_UINT8, uint8_t,   "%u")       \
     macro(FMS_UINT16, uint16_t, "%u")       \
     macro(FMS_UINT32, uint32_t, "%u")       \
-    macro(FMS_UINT64, uint64_t, "%llu")
-#else
-#define FOR_EACH_INT_TYPE(macro)            \
-    macro(FMS_INT8, int8_t,     "%d")       \
-    macro(FMS_INT16, int16_t,   "%d")       \
-    macro(FMS_INT32, int32_t,   "%d")       \
-    macro(FMS_INT64, int64_t,   "%ld")      \
-    macro(FMS_UINT8, uint8_t,   "%u")       \
-    macro(FMS_UINT16, uint16_t, "%u")       \
-    macro(FMS_UINT32, uint32_t, "%u")       \
-    macro(FMS_UINT64, uint64_t, "%lu")
-#endif
+    macro(FMS_UINT64, uint64_t, FMS_LU)
 
 #define FOR_EACH_SCALAR_TYPE(macro)         \
     macro(FMS_FLOAT, float,   "%f")         \
@@ -196,11 +188,7 @@ FmsIOAddInt(FmsIOContext *ctx, const char *path, FmsInt value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-#if FMS_USE_LL
-    fprintf(ctx->fp, "%s: %llu\n", path, value);
-#else
-    fprintf(ctx->fp, "%s: %lu\n", path, value);
-#endif
+    fprintf(ctx->fp, "%s: " FMS_LU "\n", path, value);
     return 0;
 }
 
@@ -210,12 +198,7 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsI
     FmsInt i, j;
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-#ifdef FMS_USE_LL
-    fprintf(ctx->fp, "%s/Size: %llu\n", path, n);
-#else
-    fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
-#endif
-
+    fprintf(ctx->fp, "%s/Size: " FMS_LU "\n", path, n);
     fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[FMS_UINT64]);
 
 #if 1
@@ -225,11 +208,7 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsI
     {
         for(j = 0; j < FMS_ELE_PER_LINE && i < n; j++, i++)
         {
-    #ifdef FMS_USE_LL
-            fprintf(ctx->fp, "%llu", values[i]);
-    #else
-            fprintf(ctx->fp, "%lu", values[i]);
-    #endif
+            fprintf(ctx->fp, FMS_LU, values[i]);
             if(i < n-1)
                 fprintf(ctx->fp, ", ");
         }
@@ -267,12 +246,7 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
     int retval = 0;
     const unsigned int epl = FMS_ELE_PER_LINE;
 
-#ifdef FMS_USE_LL
-    fprintf(ctx->fp, "%s/Size: %llu\n", path, n);
-#else
-    fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
-#endif
-
+    fprintf(ctx->fp, "%s/Size: " FMS_LU "\n", path, n);
     fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[type]);
 
 #define PRINT_MACRO(typename, T, format)    \
@@ -336,12 +310,7 @@ FmsIOAddScalarArray(FmsIOContext *ctx, const char *path, FmsScalarType type, con
     if(type == FMS_COMPLEX_FLOAT || type == FMS_COMPLEX_FLOAT)
         n = n * 2;
 
-#ifdef FMS_USE_LL
-    fprintf(ctx->fp, "%s/Size: %llu\n", path, n);
-#else
-    fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
-#endif
-
+    fprintf(ctx->fp, "%s/Size: " FMS_LU "\n", path, n);
     fprintf(ctx->fp, "%s/Type: %s\n", path, FmsScalarTypeNames[type]);
 
 #define PRINT_MACRO(typename, T, format)    \
