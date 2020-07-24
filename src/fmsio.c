@@ -216,6 +216,8 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsI
     fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
 #endif
 
+    fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[FMS_UINT64]);
+
 #if 1
     /* Should we make it YAML-like?*/
     fprintf(ctx->fp, "%s/Values: [", path);
@@ -1676,7 +1678,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc)
     FmsIOFunctions io;
 
     if(filename == NULL) E_RETURN(1);
-    if(protocol == NULL) E_RETURN(2);
+    if(protocol == NULL) protocol = "ascii";
 
 #ifdef FMS_HAVE_CONDUIT
     /* Conduit has a function to enumerate its protocols that it supports. Use that later. */
