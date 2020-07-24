@@ -256,7 +256,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
 
     fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[type]);
 
-#if 1
 #define PRINT_MACRO(typename, T, format)    \
     do {                                    \
     const T *v = (const T *)(values);       \
@@ -286,118 +285,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
             break;
     }
 #undef PRINT_MACRO
-#else 
-    switch(type)
-    {
-    case FMS_INT8:
-        { /*new scope */
-        const char *v = (const char *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-             fprintf(ctx->fp, "%d ", (int)v[i]);
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_INT16:
-        { /*new scope */
-        const short *v = (const short *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-             fprintf(ctx->fp, "%d ", (int)v[i]);
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_INT32:
-        { /*new scope */
-        const int *v = (const int *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-             fprintf(ctx->fp, "%d ", v[i]);
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_INT64:
-        { /*new scope */
-        const int64_t *v = (const int64_t *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-        #ifdef FMS_USE_LL
-             fprintf(ctx->fp, "%lld ", v[i]);
-        #else
-            fprintf(ctx->fp, "%ld ", v[i]);
-        #endif
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_UINT8:
-        { /*new scope */
-        const unsigned char *v = (const unsigned char *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-             fprintf(ctx->fp, "%d ", (int)v[i]);
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_UINT16:
-        { /*new scope */
-        const unsigned short *v = (const unsigned short *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-             fprintf(ctx->fp, "%d ", (int)v[i]);
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_UINT32:
-        { /*new scope */
-        const unsigned int *v = (const unsigned int *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-             fprintf(ctx->fp, "%u ", v[i]);
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    case FMS_UINT64:
-        { /*new scope */
-        const uint64_t *v = (const uint64_t *)(values);
-        fprintf(ctx->fp, "%s/Values: [", path);
-        for(i = 0; i < n; ++i)
-        {
-        #ifdef FMS_USE_LL
-             fprintf(ctx->fp, "%llu ", v[i]);
-        #else
-            fprintf(ctx->fp, "%lu ", v[i]);
-        #endif
-             if(i < n-1) fprintf(ctx->fp, ", ");
-        }
-        fprintf(ctx->fp, "]\n");
-        }
-        break;
-    default:
-        retval = 1;
-        break;
-    }
-#endif
     return retval;
 }
 
@@ -466,6 +353,7 @@ FmsIOAddScalarArray(FmsIOContext *ctx, const char *path, FmsScalarType type, con
         E_RETURN(1);
         break;
     }
+#undef PRINT_MACRO
     return retval;
 }
 
@@ -1083,46 +971,6 @@ FmsIOWriteFmsDomain(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     FREE(kentities);
     // Q: Do we even have to store the orientations? Fms converts everything to standard Fms orientation in memeory.
     return 0;
-#if 0
-/// Return the name and id of a mesh domain.
-int FmsDomainGetName(FmsDomain domain, const char **domain_name,
-                     FmsInt *domain_id);
-
-/// Return the highest dimension of an entry in a mesh domain.
-int FmsDomainGetDimension(FmsDomain domain, FmsInt *dim);
-
-/// Get the number of vertices in a domain.
-int FmsDomainGetNumVertices(FmsDomain domain, FmsInt *num_verts);
-
-/// Get the number of entities of a given type in a domain.
-int FmsDomainGetNumEntities(FmsDomain domain, FmsEntityType type,
-                            FmsInt *num_ents);
-
-/// TODO: dox
-/// No copy, read only access to all entity definitions.
-int FmsDomainGetAllEntities(FmsDomain domain, FmsEntityType type,
-                            FmsIntType *ent_id_type, const void **ents,
-                            FmsInt *num_ents);
-
-/// TODO: dox
-/// Extract a subset of the entity definitions.
-int FmsDomainGetEntities(FmsDomain domain, FmsEntityType type,
-                         FmsEntityReordering reordering, FmsIntType ent_id_type,
-                         FmsInt first_ent, void *ents, FmsInt num_ents);
-
-/// TODO: dox
-/// Extract a subset of the entity definitions in terms of their vertices.
-int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
-                              FmsEntityReordering vert_reordering,
-                              FmsIntType ent_id_type, FmsInt first_ent,
-                              void *ents_verts, FmsInt num_ents);
-
-/// TODO: dox
-/// No copy, read only access to all entity side orientations.
-int FmsDomainGetAllOrientations(FmsDomain domain, FmsEntityType type,
-                                const FmsOrientation **side_orients,
-                                FmsInt *num_ents);
-#endif
 }
 
 static int
@@ -1157,12 +1005,6 @@ FmsIOWriteDomains(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     }
     FREE(kdoms);
     return 0;
-#if 0
-/// TODO: dox
-int FmsMeshGetDomains(FmsMesh mesh, FmsInt domain_name_id,
-                      const char **domain_name, FmsInt *num_domains,
-                      FmsDomain **domains);
-#endif
 }
 
 /**
@@ -1299,16 +1141,6 @@ FmsIOWriteComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsC
     FREE(krelations);
 
     return 0;
-#if 0
-
-/// TODO: dox
-int FmsComponentGetRelations(FmsComponent comp, const FmsInt **rel_comps,
-                             FmsInt *num_rel_comps);
-
-/// Return the coordinates field of a component.
-/** Note that the returned FmsField, @a *coords, can be NULL. */
-int FmsComponentGetCoordinates(FmsComponent comp, FmsField *coords);
-#endif
 }
 
 /**
@@ -1381,20 +1213,6 @@ FmsIOWriteTag(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsTag tag
 
 
     return 0;
-#if 0
-
-/// TODO: dox
-/// No copy, read only access to the entity-tag array.
-int FmsTagGet(FmsTag tag, FmsIntType *tag_type, const void **ent_tags,
-              FmsInt *num_ents);
-
-/// TODO: dox
-/** The arrays @a tags and @a tag_descr have the same size, @a num_tags.
-
-    The @a tag_type is the type of the entries in the @a tags array. */
-int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
-                          const char *const **tag_descr, FmsInt *num_tags);
-#endif
 }
 
 
@@ -1486,30 +1304,6 @@ FmsIOWriteFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsMes
     FREE(ktags);
 
     return 0;
-#if 0
-/// TODO: dox
-int FmsMeshGetPartitionId(FmsMesh mesh, FmsInt *partition_id,
-                          FmsInt *num_partitions);
-
-/// TODO: dox
-int FmsMeshGetNumDomainNames(FmsMesh mesh, FmsInt *num_domain_names);
-
-/// TODO: dox
-int FmsMeshGetDomainsByName(FmsMesh mesh, const char *domain_name,
-                            FmsInt *num_domains, FmsDomain **domains);
-
-/// TODO: dox
-int FmsMeshGetNumComponents(FmsMesh mesh, FmsInt *num_comp);
-
-/// TODO: dox
-int FmsMeshGetComponent(FmsMesh mesh, FmsInt comp_id, FmsComponent *comp);
-
-/// TODO: dox
-int FmsMeshGetNumTags(FmsMesh mesh, FmsInt *num_tags);
-
-/// TODO: dox
-int FmsMeshGetTag(FmsMesh mesh, FmsInt tag_id, FmsTag *tag);
-#endif
 }
 
 /**
@@ -1583,27 +1377,6 @@ FmsIOWriteFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *
     char *kndofs = join_keys(key, "NumDofs");
     (*io->add_int)(ctx, kndofs, ndofs);
     FREE(kndofs);
-#if 0
-/// TODO: dox
-int FmsFieldDescriptorGetName(FmsFieldDescriptor fd, const char **fd_name);
-
-/// TODO: dox
-int FmsFieldDescriptorGetComponent(FmsFieldDescriptor fd, FmsComponent *comp);
-
-/// TODO: dox
-int FmsFieldDescriptorGetType(FmsFieldDescriptor fd,
-                              FmsFieldDescriptorType *fd_type);
-
-/// TODO: dox
-int FmsFieldDescriptorGetFixedOrder(FmsFieldDescriptor fd,
-                                    FmsFieldType *field_type,
-                                    FmsBasisType *basis_type, FmsInt *order);
-
-/// TODO: dox
-int FmsFieldDescriptorGetNumDofs(FmsFieldDescriptor fd, FmsInt *num_dofs);
-#endif
-
-    
     return 0;
 }
 
