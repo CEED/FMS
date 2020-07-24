@@ -155,6 +155,17 @@ const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES] = {
   1, 2, 4, 8, 1, 2, 4, 8
 };
 
+const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES] = {
+  "FMS_INT8",
+  "FMS_INT16",
+  "FMS_INT32",
+  "FMS_INT64",
+  "FMS_UINT8",
+  "FMS_UINT16",
+  "FMS_UINT32",
+  "FMS_UINT64",
+};
+
 const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES] = {
   "FMS_VERTEX",
   "FMS_EDGE",
@@ -180,6 +191,20 @@ const FmsInt FmsEntityNumVerts[FMS_NUM_ENTITY_TYPES] = {
 
 const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES] = {
   sizeof(float), sizeof(double), 2*sizeof(float), 2*sizeof(double)
+};
+
+const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES] = {
+  "FMS_FLOAT",
+  "FMS_DOUBLE",
+  "FMS_COMPLEX_FLOAT",
+  "FMS_COMPLEX_DOUBLE",
+};
+
+const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES] = {
+  "FMS_INTEGER",
+  "FMS_SCALAR",
+  "FMS_STRING",
+  "FMS_META_DATA",
 };
 
 

@@ -56,6 +56,8 @@ typedef enum {
 
 extern const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES];
 
+extern const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES];
+
 /// TODO: dox
 /** A mesh consists of:
     * mesh domains
@@ -310,6 +312,8 @@ typedef enum {
 
 extern const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES];
 
+extern const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES];
+
 /// TODO: dox
 typedef enum {
   FMS_FIXED_ORDER
@@ -346,8 +350,11 @@ typedef enum {
   FMS_INTEGER,
   FMS_SCALAR,
   FMS_STRING,
-  FMS_META_DATA
+  FMS_META_DATA,
+  FMS_NUM_METADATA_TYPES
 } FmsMetaDataType;
+
+extern const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES];
 
 /// TODO: dox
 /** A meta-data structure contains:

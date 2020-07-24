@@ -27,6 +27,41 @@
 
 #define FREE(PTR) if((PTR) != NULL) free(PTR)
 
+// Feature: If you set this to 1 then the last line is going to have 2
+#define FMS_ELE_PER_LINE 3u
+
+#if UINT_MAX == ULONG_MAX
+#define FMS_USE_LL 1
+#endif
+
+#ifdef FMS_USE_LL
+#define FOR_EACH_INT_TYPE(macro)            \
+    macro(FMS_INT8, int8_t,     "%d")       \
+    macro(FMS_INT16, int16_t,   "%d")       \
+    macro(FMS_INT32, int32_t,   "%d")       \
+    macro(FMS_INT64, int64_t,   "%ld")      \
+    macro(FMS_UINT8, uint8_t,   "%u")       \
+    macro(FMS_UINT16, uint16_t, "%u")       \
+    macro(FMS_UINT32, uint32_t, "%u")       \
+    macro(FMS_UINT64, uint64_t, "%llu")
+#else
+#define FOR_EACH_INT_TYPE(macro)            \
+    macro(FMS_INT8, int8_t,     "%d")       \
+    macro(FMS_INT16, int16_t,   "%d")       \
+    macro(FMS_INT32, int32_t,   "%d")       \
+    macro(FMS_INT64, int64_t,   "%ld")      \
+    macro(FMS_UINT8, uint8_t,   "%u")       \
+    macro(FMS_UINT16, uint16_t, "%u")       \
+    macro(FMS_UINT32, uint32_t, "%u")       \
+    macro(FMS_UINT64, uint64_t, "%lu")
+#endif
+
+#define FOR_EACH_SCALAR_TYPE(macro)         \
+    macro(FMS_FLOAT, float,   "%f")         \
+    macro(FMS_DOUBLE, double, "%f")         \
+    macro(FMS_COMPLEX_FLOAT, float, "%f")   \
+    macro(FMS_COMPLEX_DOUBLE, double, "%f")
+
 /**
 @note borrowed from fms.c for a bit.
 */
@@ -98,13 +133,14 @@ typedef struct
 
     int (*add_int)(FmsIOContext *ctx, const char *path, FmsInt value);
     int (*add_int_array)(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsInt n);
-    int (*add_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, size_t n);
+    int (*add_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, FmsInt n);
     int (*add_float)(FmsIOContext *ctx, const char *path, float value);
-    int (*add_float_array)(FmsIOContext *ctx, const char *path, const float *values, FmsInt n);
+    /* int (*add_float_array)(FmsIOContext *ctx, const char *path, const float *values, FmsInt n); */
     int (*add_double)(FmsIOContext *ctx, const char *path, double value);
-    int (*add_double_array)(FmsIOContext *ctx, const char *path, const double *value, FmsInt n);
+    /* int (*add_double_array)(FmsIOContext *ctx, const char *path, const double *value, FmsInt n); */
+    int (*add_scalar_array)(FmsIOContext *ctx, const char *path, FmsScalarType type, const void *data, FmsInt n);
     int (*add_string)(FmsIOContext *ctx, const char *path, const char *value);
-    int (*add_string_array)(FmsIOContext *ctx, const char *path, const char **value, size_t n);
+    int (*add_string_array)(FmsIOContext *ctx, const char *path, const char **value, FmsInt n);
 
     /* TODO: functions for reading path+value*/
     int (*get_int)(FmsIOContext *ctx, const char *path, int *value);
@@ -143,7 +179,7 @@ FmsIOAddInt(FmsIOContext *ctx, const char *path, FmsInt value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-#if UINT_MAX == ULONG_MAX
+#if FMS_USE_LL
     fprintf(ctx->fp, "%s: %llu\n", path, value);
 #else
     fprintf(ctx->fp, "%s: %lu\n", path, value);
@@ -152,23 +188,34 @@ FmsIOAddInt(FmsIOContext *ctx, const char *path, FmsInt value)
 }
 
 static int
-FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, size_t n)
+FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsInt n)
 {
-    size_t i;
+    FmsInt i, j;
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
+#ifdef FMS_USE_LL
+    fprintf(ctx->fp, "%s/Size: %llu\n", path, n);
+#else
+    fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
+#endif
+
 #if 1
     /* Should we make it YAML-like?*/
-    fprintf(ctx->fp, "%s: [", path);
+    fprintf(ctx->fp, "%s/Values: [", path);
     for(i = 0; i < n; ++i)
     {
-#if UINT_MAX == ULONG_MAX
-        fprintf(ctx->fp, "%llu", values[i]);
-#else
-        fprintf(ctx->fp, "%lu", values[i]);
-#endif
+        for(j = 0; j < FMS_ELE_PER_LINE && i < n; j++, i++)
+        {
+    #ifdef FMS_USE_LL
+            fprintf(ctx->fp, "%llu", values[i]);
+    #else
+            fprintf(ctx->fp, "%lu", values[i]);
+    #endif
+            if(i < n-1)
+                fprintf(ctx->fp, ", ");
+        }
         if(i < n-1)
-            fprintf(ctx->fp, ", ");
+            fprintf(ctx->fp, "\n");
     }
     fprintf(ctx->fp, "]\n");
 #else
@@ -194,18 +241,57 @@ NOTE: This function is needed since for metadata we're given void* data with an 
       key2/path/to/other2: [0,1,2,3,4,5,6]    # int
 */
 static int
-FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, size_t n)
+FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, FmsInt n)
 {
     /* Shall we stick some type information into the ASCII to preserve the intended IntType? */
-    size_t i;
+    size_t i, j;
     int retval = 0;
+    const unsigned int epl = FMS_ELE_PER_LINE;
 
+#ifdef FMS_USE_LL
+    fprintf(ctx->fp, "%s/Size: %llu\n", path, n);
+#else
+    fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
+#endif
+
+    fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[type]);
+
+#if 1
+#define PRINT_MACRO(typename, T, format)    \
+    do {                                    \
+    const T *v = (const T *)(values);       \
+    fprintf(ctx->fp, "%s/Values: [", path); \
+    for(i = 0; i < n;) {                    \
+        for(j = 0; j < epl && i < n; j++, i++) { \
+            fprintf(ctx->fp, format, v[i]); \
+            if(i < n-1)                     \
+                fprintf(ctx->fp, ", ");     \
+        }                                   \
+        if(i < n-1)                         \
+            fprintf(ctx->fp, "\n");         \
+    }                                       \
+    fprintf(ctx->fp, "]\n");                \
+    } while(0)
+
+    switch(type)
+    {
+    #define CASES(typename, T, format)          \
+        case typename:                          \
+            PRINT_MACRO(typename, T, format);   \
+            break;
+        FOR_EACH_INT_TYPE(CASES)
+    #undef CASES
+        default:
+            E_RETURN(1);
+            break;
+    }
+#undef PRINT_MACRO
+#else 
     switch(type)
     {
     case FMS_INT8:
         { /*new scope */
         const char *v = (const char *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_INT8\n", path);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
@@ -218,7 +304,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
     case FMS_INT16:
         { /*new scope */
         const short *v = (const short *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_INT16\n", path);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
@@ -231,7 +316,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
     case FMS_INT32:
         { /*new scope */
         const int *v = (const int *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_INT32\n", path);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
@@ -243,12 +327,15 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
         break;
     case FMS_INT64:
         { /*new scope */
-        const long long *v = (const long long *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_INT64\n", path);
+        const int64_t *v = (const int64_t *)(values);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
+        #ifdef FMS_USE_LL
              fprintf(ctx->fp, "%lld ", v[i]);
+        #else
+            fprintf(ctx->fp, "%ld ", v[i]);
+        #endif
              if(i < n-1) fprintf(ctx->fp, ", ");
         }
         fprintf(ctx->fp, "]\n");
@@ -257,7 +344,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
     case FMS_UINT8:
         { /*new scope */
         const unsigned char *v = (const unsigned char *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_UINT8\n", path);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
@@ -270,7 +356,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
     case FMS_UINT16:
         { /*new scope */
         const unsigned short *v = (const unsigned short *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_UINT16\n", path);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
@@ -283,7 +368,6 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
     case FMS_UINT32:
         { /*new scope */
         const unsigned int *v = (const unsigned int *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_UINT32\n", path);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
@@ -295,12 +379,15 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
         break;
     case FMS_UINT64:
         { /*new scope */
-        const unsigned long long *v = (const unsigned long long *)(values);
-        fprintf(ctx->fp, "%s/Type: FMS_UINT64\n", path);
+        const uint64_t *v = (const uint64_t *)(values);
         fprintf(ctx->fp, "%s/Values: [", path);
         for(i = 0; i < n; ++i)
         {
+        #ifdef FMS_USE_LL
              fprintf(ctx->fp, "%llu ", v[i]);
+        #else
+            fprintf(ctx->fp, "%lu ", v[i]);
+        #endif
              if(i < n-1) fprintf(ctx->fp, ", ");
         }
         fprintf(ctx->fp, "]\n");
@@ -310,7 +397,7 @@ FmsIOAddTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType type, cons
         retval = 1;
         break;
     }
-
+#endif
     return retval;
 }
 
@@ -328,8 +415,58 @@ FmsIOAddDouble(FmsIOContext *ctx, const char *path, double value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-    fprintf(ctx->fp, "%s: %lg\n", path, value);
+    fprintf(ctx->fp, "%s: %f\n", path, value);
     return 0;
+}
+
+static int
+FmsIOAddScalarArray(FmsIOContext *ctx, const char *path, FmsScalarType type, const void *values, FmsInt n)
+{
+    /* Shall we stick some type information into the ASCII to preserve the intended IntType? */
+    size_t i, j;
+    int retval = 0;
+    const unsigned int epl = FMS_ELE_PER_LINE;
+
+    if(type == FMS_COMPLEX_FLOAT || type == FMS_COMPLEX_FLOAT)
+        n = n * 2;
+
+#ifdef FMS_USE_LL
+    fprintf(ctx->fp, "%s/Size: %llu\n", path, n);
+#else
+    fprintf(ctx->fp, "%s/Size: %lu\n", path, n);
+#endif
+
+    fprintf(ctx->fp, "%s/Type: %s\n", path, FmsScalarTypeNames[type]);
+
+#define PRINT_MACRO(typename, T, format)    \
+    do {                                    \
+    const T *v = (const T *)(values);       \
+    fprintf(ctx->fp, "%s/Values: [", path); \
+    for(i = 0; i < n;) {                    \
+        for(j = 0; j < epl && i < n; j++, i++) { \
+            fprintf(ctx->fp, format, v[i]); \
+            if(i < n-1)                     \
+                fprintf(ctx->fp, ", ");     \
+        }                                   \
+        if(i < n-1)                         \
+            fprintf(ctx->fp, "\n");         \
+    }                                       \
+    fprintf(ctx->fp, "]\n");                \
+    } while(0)
+
+    switch(type)
+    {
+    #define CASES(typename, T, format)          \
+        case typename:                          \
+            PRINT_MACRO(typename, T, format);   \
+            break;
+        FOR_EACH_SCALAR_TYPE(CASES)
+    #undef CASES
+    default:
+        E_RETURN(1);
+        break;
+    }
+    return retval;
 }
 
 static int
@@ -397,6 +534,7 @@ FmsIOFunctionsInitialize(FmsIOFunctions *obj)
         obj->add_typed_int_array = FmsIOAddTypedIntArray;
         obj->add_float = FmsIOAddFloat;
         obj->add_double = FmsIOAddDouble;
+        obj->add_scalar_array = FmsIOAddScalarArray;
         obj->add_string = FmsIOAddString;
         /*...*/
         obj->get_int = FmsIOGetInt;
@@ -741,6 +879,141 @@ join_keys(const char *k1, const char *k2)
     if(str)
         sprintf(str, "%s/%s", k1, k2);
     return str;
+}
+
+/**
+@brief Write FmsMetaData to the output I/O context.
+@param ctx The context
+@param io  The I/O functions that operate on the context.
+@param key The key that identifies the data in the output.
+@param mdata  The FMS metadata.
+@return 0 on success, non-zero otherwise.
+*/
+static int
+FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsMetaData mdata)
+{
+    /** TODO: write me */
+    int err = 0;
+    FmsMetaDataType type;
+
+    /* It says it returns 1 if mdata is empty, but then just checks if its null (if im not mistaken).
+        We already null checked before we got here so I'm not sure if we need to check for 1. */        
+    int r = FmsMetaDataGetType(mdata, &type);
+    if(r > 1)
+        E_RETURN(1);
+    else if(r == 1)
+        return 0;
+
+    char *kmdtype = join_keys(key, "MetaDataType");
+    (*io->add_string)(ctx, kmdtype, FmsMetaDataTypeNames[type]);
+    FREE(kmdtype);
+
+    switch(type)
+    {
+        case FMS_INTEGER:
+        {
+            char *kname = NULL, *kdata = NULL;
+            const char *mdata_name = NULL;
+            FmsIntType int_type;
+            FmsInt size;
+            const void *data = NULL;
+
+            if(FmsMetaDataGetIntegers(mdata, &mdata_name, &int_type, &size, &data))
+                E_RETURN(3);
+            
+            kname = join_keys(key, "Name");
+            err = (*io->add_string)(ctx, kname, mdata_name);
+            FREE(kname);
+
+            kdata = join_keys(key, "Data");
+            err = (*io->add_typed_int_array)(ctx, kdata, int_type, data, size);
+            FREE(kdata);                
+            if(err)
+                E_RETURN(4);
+            break;
+        }
+        case FMS_SCALAR:
+        {
+            char *kname = NULL, *kdata = NULL;
+            const char *mdata_name = NULL;
+            FmsScalarType scalar_type;
+            FmsInt size;
+            const void *data = NULL;
+
+            if(FmsMetaDataGetScalars(mdata, &mdata_name, &scalar_type, &size, &data))
+                E_RETURN(5);
+            
+            kname = join_keys(key, "Name");
+            err = (*io->add_string)(ctx, kname, mdata_name);
+            FREE(kname);
+
+            kdata = join_keys(key, "Data");
+            err = (*io->add_scalar_array)(ctx, kdata, scalar_type, data, size);
+            FREE(kdata);                
+            if(err)
+                E_RETURN(6);
+            break;
+        }
+        case FMS_STRING:
+        {
+            char *kname = NULL, *kdata = NULL;
+            const char *mdata_name = NULL;
+            const char *data = NULL;
+
+            if(FmsMetaDataGetString(mdata, &mdata_name, &data))
+                E_RETURN(7);
+            
+            kname = join_keys(key, "Name");
+            err = (*io->add_string)(ctx, kname, mdata_name);
+            FREE(kname);
+
+            kdata = join_keys(key, "Data");
+            err = (*io->add_string)(ctx, kdata, data);
+            FREE(kdata);       
+            if(err)
+                E_RETURN(8);
+            break;
+        }
+        case FMS_META_DATA:
+        {
+            char *kname = NULL, *kdata = NULL, *ksize = NULL;
+            const char *mdata_name = NULL;
+            FmsInt i, size = 0;
+            FmsMetaData *data = NULL;
+
+            if(FmsMetaDataGetMetaData(mdata, &mdata_name, &size, &data))
+                E_RETURN(9);
+
+            if(!data)
+                E_RETURN(10);
+
+            kname = join_keys(key, "Name");
+            err = (*io->add_string)(ctx, kname, mdata_name);
+            FREE(kname);
+            
+            ksize = join_keys(key, "Size");
+            err = (*io->add_int)(ctx, ksize, size);
+
+            kdata = join_keys(key, "Data");
+            // Recursive?
+            for(i = 0; i < size; i++)
+            {
+                char temp[20], *tk = NULL;
+                sprintf(temp, "%d", (int)i);
+                tk = join_keys(key, temp);
+                err = FmsIOWriteFmsMetaData(ctx, io, tk, data[i]);
+            }
+            FREE(kdata);
+
+            if(err)
+                E_RETURN(11);
+            break;
+        }
+        default:
+            E_RETURN(12);
+            break;
+    }        
+    return 0;         
 }
 
 static int
@@ -1366,107 +1639,44 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
     (*io->add_int)(ctx, klt, (FmsInt)lt);
     FREE(klt);
 
-    char *kdt = join_keys(key, "DataType");
-    (*io->add_int)(ctx, kdt, (FmsInt)dt);
-    FREE(kdt);
+    char *knc = join_keys(key, "NumberOfVectorComponents");
+    (*io->add_int)(ctx, knc, num_vec_comp);
+    FREE(knc);
+
+    if(!fd)
+        E_RETURN(3);
+
+    const char *fdname = NULL;
+    if(FmsFieldDescriptorGetName(fd, &fdname))
+        E_RETURN(4);
+    char *kfdname = join_keys(key, "FieldDescriptorName");
+    (*io->add_string)(ctx, kfdname, fdname);
+    FREE(kfdname);
+
+    FmsMetaData md;
+    if(FmsFieldGetMetaData(field, &md))
+        E_RETURN(4);
+    
+    if(md)
+    {
+        char *kmd = join_keys(key, "MetaData");
+        FmsIOWriteFmsMetaData(ctx, io, kmd, md);
+        FREE(kmd);
+    }
+
+    FmsInt ndofs = 0;
+    FmsFieldDescriptorGetNumDofs(fd, &ndofs);
 
     char *kdata = join_keys(key, "Data");
-    switch(dt)
-    {
-        case FMS_FLOAT:
-            // (*io->add_float_array)(ctx, kdata, (float*)data, num_vec_comp);
-            // break;
-        case FMS_DOUBLE:
-            // (*io->add_double_array)(ctx, kdata, (double*)data, num_vec_comp);
-            // break;
-        case FMS_COMPLEX_FLOAT:
-        case FMS_COMPLEX_DOUBLE:
-        default:
-            // E_RETURN(3);
-            break;
-    }
+    (*io->add_scalar_array)(ctx, kdata, dt, data, num_vec_comp * ndofs);
     FREE(kdata);
+
+
     /* NOTES:
         1. What is in the MetaData?
         2. If each field points to a field descriptor - do should I write FieldDescriptors here?
             * Maybe multiple fields can point to the same FieldDescriptor in which case 
                 I should just write them seperate and refer to them. */
-
-#if 0
-/// TODO: dox
-int FmsFieldGetName(FmsField field, const char **field_name);
-
-/// TODO: dox
-int FmsFieldGet(FmsField field, FmsFieldDescriptor *fd, FmsInt *num_vec_comp,
-                FmsLayoutType *layout_type, FmsScalarType *data_type,
-                const void **data);
-
-/// TODO: dox
-int FmsFieldGetMetaData(FmsField field, FmsMetaData *mdata);
-#endif
-    return 0;
-}
-
-/**
-@brief Write FmsMetaData to the output I/O context.
-@param ctx The context
-@param io  The I/O functions that operate on the context.
-@param key The key that identifies the data in the output.
-@param mdata  The FMS metadata.
-@return 0 on success, non-zero otherwise.
-*/
-static int
-FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsMetaData mdata)
-{
-    /** TODO: write me */
-    int err = 0;
-    FmsMetaDataType type = FMS_INTEGER;
-
-    if(FmsMetaDataGetType(mdata, &type) > 1)
-    {
-        E_RETURN(1);
-    }
-    else
-    {
-        char *dkey = NULL, *nkey = NULL;
-        
-        if(type == FMS_INTEGER)
-        {
-            const char *mdata_name = NULL;
-            FmsIntType int_type;
-            FmsInt size;
-            const void *data = NULL;
-
-            if(FmsMetaDataGetIntegers(mdata, &mdata_name, &int_type, &size, &data) == 0)
-            {
-                dkey = join_keys(key, "Integers");
-                nkey = join_keys(dkey, "Name");
-                err = (*io->add_string)(ctx, nkey, mdata_name);
-                FREE(nkey);
-                err = (*io->add_typed_int_array)(ctx, dkey, int_type, data, size);
-                FREE(dkey);                
-                if(err)
-                    E_RETURN(2);
-            }
-            else
-            {
-                E_RETURN(2);
-            }
-        }
-        else if(type == FMS_SCALAR)
-        {
-            /* TODO: write me */
-        }
-        else if(type == FMS_STRING)
-        {
-            /* TODO: write me */
-        }
-        else if(type == FMS_META_DATA)
-        {
-            /* TODO: write me... recursion? */
-        }
-    }
-
 
     return 0;
 }
@@ -1501,19 +1711,6 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
             E_RETURN(1);
     }
 
-    if(FmsDataCollectionGetMesh(dc, &mesh) == 0)
-    {
-        char *m_key = join_keys(key, "Mesh");
-        err = FmsIOWriteFmsMesh(ctx, io, m_key, mesh);
-        FREE(m_key);
-        if(err)
-            E_RETURN(1);
-    }
-    else
-    {
-        E_RETURN(2);
-    }
-
     if(FmsDataCollectionGetFieldDescriptors(dc, &fds, &num_fds) == 0)
     {
         char *fd_key = NULL, *fdlen_key = NULL;
@@ -1524,7 +1721,7 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
         {
             FREE(fd_key);
             FREE(fdlen_key);
-            E_RETURN(3);
+            E_RETURN(2);
         }
         FREE(fdlen_key);
 
@@ -1542,11 +1739,11 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
         FREE(fd_key);
         if(err)
-            E_RETURN(4);
+            E_RETURN(3);
     }
     else
     {
-        E_RETURN(5);
+        E_RETURN(4);
     }
 
     if(FmsDataCollectionGetFields(dc, &fields, &num_fields) == 0)
@@ -1559,7 +1756,7 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
         {
             FREE(f_key);
             FREE(flen_key);
-            E_RETURN(6);
+            E_RETURN(5);
         }
         FREE(flen_key);
 
@@ -1576,11 +1773,24 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
         FREE(f_key);
         if(err)
-            E_RETURN(7);
+            E_RETURN(6);
     }
     else
     {
-        E_RETURN(8);
+        E_RETURN(7);
+    }
+
+    if(FmsDataCollectionGetMesh(dc, &mesh) == 0)
+    {
+        char *m_key = join_keys(key, "Mesh");
+        err = FmsIOWriteFmsMesh(ctx, io, m_key, mesh);
+        FREE(m_key);
+        if(err)
+            E_RETURN(8);
+    }
+    else
+    {
+        E_RETURN(9);
     }
 
     if(FmsDataCollectionGetMetaData(dc, &md) == 0)
