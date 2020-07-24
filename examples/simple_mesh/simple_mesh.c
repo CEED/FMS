@@ -108,7 +108,7 @@ int main(int argc, const char *argv[]) {
   FmsComponentSetCoordinates(volume, coords);
 
   // Use the mesh to perform computations
-  FmsIOWrite("simple_mesh.fms", "ascii", dc);
+  FmsIOWrite("simple_mesh.fms", "json", dc);
 
   // Destroy the data collection: destroys the FmsMesh and all other linked Fms
   // objects.

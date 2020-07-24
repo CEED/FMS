@@ -15,6 +15,9 @@
  software, applications, hardware, advanced system engineering and early
  testbed platforms, in support of the nation's exascale computing imperative.
 */
+// We use strdup() - this is one way to get it:
+#define _XOPEN_SOURCE 600
+
 #include <fmsio.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +26,7 @@
 
 #ifdef FMS_HAVE_CONDUIT
 #include <conduit.h>
+#include <conduit_relay.h>
 #endif
 
 #define FREE(PTR) if((PTR) != NULL) free(PTR)
@@ -147,6 +151,19 @@ typedef struct
     /*...*/
 
 } FmsIOFunctions;
+
+static char *
+join_keys(const char *k1, const char *k2)
+{
+    size_t len = 0;
+    char *str = NULL;
+
+    len = strlen(k1) + 1/*slash*/ + strlen(k2) + 1;
+    str = (char *)malloc(sizeof(char) * len);
+    if(str)
+        sprintf(str, "%s/%s", k1, k2);
+    return str;
+}
 
 /*****************************************************************************
 *** FMS I/O Functions for ASCII
@@ -370,30 +387,30 @@ FmsIOAddString(FmsIOContext *ctx, const char *path, const char *value)
 
 /* Get functions. Assume that the file pointer is at the right place. */
 
-int
-FmsIOGetInt(FmsIOContext *ctx, const char *path, int *value)
-{
-    char *line = NULL;
-    ssize_t nread = 0;
-    size_t len = 0;
-    int retval = 0;
-    if(ctx) E_RETURN(1);
-    if(path) E_RETURN(2);
-    if(value) E_RETURN(3);
-    if((nread = getline(&line, &len, ctx->fp)) != -1)
-    {
-        size_t klen = strlen(path);
-        if(strncmp(line, path, klen) == 0)
-        {
-            if(sscanf(line+klen+1, "%d", value) != 1)
-                retval = 4;
-        }
-        else
-            retval = 5;
-        FREE(line);
-    }
-    return retval;
-}
+// int
+// FmsIOGetInt(FmsIOContext *ctx, const char *path, int *value)
+// {
+//     char *line = NULL;
+//     ssize_t nread = 0;
+//     size_t len = 0;
+//     int retval = 0;
+//     if(ctx) E_RETURN(1);
+//     if(path) E_RETURN(2);
+//     if(value) E_RETURN(3);
+//     if((nread = getline(&line, &len, ctx->fp)) != -1)
+//     {
+//         size_t klen = strlen(path);
+//         if(strncmp(line, path, klen) == 0)
+//         {
+//             if(sscanf(line+klen+1, "%d", value) != 1)
+//                 retval = 4;
+//         }
+//         else
+//             retval = 5;
+//         FREE(line);
+//     }
+//     return retval;
+// }
 
 /**
 @brief This function initializes the IO context .
@@ -425,7 +442,7 @@ FmsIOFunctionsInitialize(FmsIOFunctions *obj)
         obj->add_scalar_array = FmsIOAddScalarArray;
         obj->add_string = FmsIOAddString;
         /*...*/
-        obj->get_int = FmsIOGetInt;
+        /*obj->get_int = FmsIOGetInt; */
 #ifdef MEANDERING_THOUGHTS
         obj->begin_list = FmsIOBeginList;
         obj->end_list = FmsIOEndList;
@@ -460,9 +477,9 @@ FmsIOOpenConduit(FmsIOContext *ctx, const char *filename, const char *mode)
 }
 
 static int
-FMSIOCloseConduit(FmsIOContext *ctx)
+FmsIOCloseConduit(FmsIOContext *ctx)
 {
-    if(!fp) E_RETURN(1);
+    if(!ctx) E_RETURN(1);
 
     if(ctx->writing)
     {
@@ -485,59 +502,84 @@ FmsIOAddIntConduit(FmsIOContext *ctx, const char *path, FmsInt value)
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
     /*conduit_node_set_path_int(ctx->root, path, value);*/
-    conduit_node_set_path_unsigned_long(ctx->root, path, value);
+    conduit_node_set_path_uint64(ctx->root, path, value);
     return 0;
 }
 
 static int
-FmsIOAddIntArrayConduit(FmsIOContext *ctx, const char *path, const int *values, size_t n)
+FmsIOAddIntArrayConduit(FmsIOContext *ctx, const char *path, const FmsInt *values, size_t n)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-    if(!values) E_RETURN(3);
-    /*conduit_node_set_path_int_ptr(ctx->root, path, (int *)values, n);*/
-    conduit_node_set_path_uint64_ptr(ctx->root, path, values, n);
+
+    char *ksize = join_keys(path, "Size");
+    conduit_node_set_path_uint64(ctx->root, ksize, n);
+    FREE(ksize);
+
+    char *ktype = join_keys(path, "Type");
+    conduit_node_set_path_char8_str(ctx->root, ktype, FmsIntTypeNames[FMS_UINT64]);
+    FREE(ktype);
+    
+    if(!values || n == 0)
+        return 0;
+
+    char *kvalues = join_keys(path, "Values");
+    conduit_node_set_path_uint64_ptr(ctx->root, kvalues, (FmsInt *)values, n);
+    FREE(kvalues);
     return 0;
 }
 
 static int
-FmsIOAddTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, size_t n)
+FmsIOAddTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, FmsInt n)
 {
     int retval = 0;
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-    if(!values) E_RETURN(3);
+    
+    char *ksize = join_keys(path, "Size");
+    conduit_node_set_path_uint64(ctx->root, ksize, n);
+    FREE(ksize);
+
+    char *ktype = join_keys(path, "Type");
+    conduit_node_set_path_char8_str(ctx->root, ktype, FmsIntTypeNames[FMS_UINT64]);
+    FREE(ktype);
+    
+    if(!values || n == 0)
+        return 0;
+
+    char *kvalues = join_keys(path, "Values");
     switch(type)
     {
     case FMS_INT8:
-        conduit_node_set_path_int8_ptr(ctx->root, path, (conduit_int8 *)values, n);
+        conduit_node_set_path_int8_ptr(ctx->root, kvalues, (conduit_int8 *)values, n);
         break;
     case FMS_INT16:
-        conduit_node_set_path_int16_ptr(ctx->root, path, (conduit_int16 *)values, n);
+        conduit_node_set_path_int16_ptr(ctx->root, kvalues, (conduit_int16 *)values, n);
         break;
     case FMS_INT32:
-        conduit_node_set_path_int32_ptr(ctx->root, path, (conduit_int32 *)values, n);
+        conduit_node_set_path_int32_ptr(ctx->root, kvalues, (conduit_int32 *)values, n);
         break;
     case FMS_INT64:
-        conduit_node_set_path_int64_ptr(ctx->root, path, (conduit_int64 *)values, n);
+        conduit_node_set_path_int64_ptr(ctx->root, kvalues, (conduit_int64 *)values, n);
         break;
     case FMS_UINT8:
-        conduit_node_set_path_uint8_ptr(ctx->root, path, (conduit_uint8 *)values, n);
+        conduit_node_set_path_uint8_ptr(ctx->root, kvalues, (conduit_uint8 *)values, n);
         break;
     case FMS_UINT16:
-        conduit_node_set_path_uint16_ptr(ctx->root, path, (conduit_uint16 *)values, n);
+        conduit_node_set_path_uint16_ptr(ctx->root, kvalues, (conduit_uint16 *)values, n);
         break;
     case FMS_UINT32:
-        conduit_node_set_path_uint32_ptr(ctx->root, path, (conduit_uint32 *)values, n);
+        conduit_node_set_path_uint32_ptr(ctx->root, kvalues, (conduit_uint32 *)values, n);
         break;
     case FMS_UINT64:
-        conduit_node_set_path_uint64_ptr(ctx->root, path, (conduit_uint64 *)values, n);
+        conduit_node_set_path_uint64_ptr(ctx->root, kvalues, (conduit_uint64 *)values, n);
         break;
     default:
-        retval = 1;
+        FREE(kvalues);
+        E_RETURN(1);
         break;
     }
-
+    FREE(kvalues);
     return retval;
 }
 
@@ -560,12 +602,52 @@ FmsIOAddDoubleConduit(FmsIOContext *ctx, const char *path, double value)
 }
 
 static int
+FmsIOAddScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType type, const void *data, FmsInt size)
+{
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+
+    char *ktype = join_keys(path, "Type");
+    conduit_node_set_path_char8_str(ctx->root, ktype, FmsScalarTypeNames[type]);
+    FREE(ktype);
+
+    char *ksize = join_keys(path, "Size");
+    conduit_node_set_path_uint64(ctx->root, ksize, size);
+    FREE(ksize);
+
+    if(!data || size == 0)
+        return 0;
+
+    char *kvalues = join_keys(path, "Values");
+    switch (type) {
+        case FMS_FLOAT:
+            conduit_node_set_path_float32_ptr(ctx->root, kvalues, (conduit_float32 *)data, size);
+            break;
+        case FMS_DOUBLE:
+            conduit_node_set_path_float64_ptr(ctx->root, kvalues, (conduit_float64 *)data, size);
+            break;
+        case FMS_COMPLEX_FLOAT:
+            conduit_node_set_path_float32_ptr(ctx->root, kvalues, (conduit_float32 *)data, size*2);
+            break;
+        case FMS_COMPLEX_DOUBLE:
+            conduit_node_set_path_float64_ptr(ctx->root, kvalues, (conduit_float64 *)data, size*2);
+            break;
+        default:
+            FREE(kvalues);
+            E_RETURN(1);
+            break;
+    }
+    FREE(kvalues);
+    return 0;
+}
+
+static int
 FmsIOAddStringConduit(FmsIOContext *ctx, const char *path, const char *value)
 {
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
-    /*conduit_node_set_path_char8_str(ctx->root, path, value);*/
-    conduit_node_set_path_external_char8_str(ctx->root, path, value);
+    conduit_node_set_path_char8_str(ctx->root, path, value);
+    /* NOT IMPLEMENTED IN CONDUIT conduit_node_set_path_external_char8_str(ctx->root, path, (char *)value);*/
     return 0;
 }
 
@@ -595,7 +677,7 @@ FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, int *value)
     {
         E_RETURN(4);
     }
-    return 0
+    return 0;
 }
 
 #ifdef MEANDERING_THOUGHTS
@@ -707,9 +789,11 @@ FmsIOContextInitializeConduit(FmsIOContext *ctx, const char *protocol)
     if(ctx)
     {
         int i;
+#ifdef MEANDERING_THOUGHTS
         for(i = 0; i < 100; ++i)
             ctx->stack[i] = NULL;
         ctx->stack_top = -1;
+#endif
 
         ctx->filename = NULL;
         ctx->root = NULL;
@@ -737,6 +821,7 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj)
         obj->add_float = FmsIOAddFloatConduit;
         obj->add_double = FmsIOAddDoubleConduit;
         obj->add_string = FmsIOAddStringConduit;
+        obj->add_scalar_array = FmsIOAddScalarArrayConduit;
         /*...*/
         obj->get_int = FmsIOGetIntConduit;
 #ifdef MEANDERING_THOUGHTS
@@ -755,19 +840,6 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj)
 /*****************************************************************************
 *** FMS I/O Building Block Functions
 *****************************************************************************/
-
-static char *
-join_keys(const char *k1, const char *k2)
-{
-    size_t len = 0;
-    char *str = NULL;
-
-    len = strlen(k1) + 1/*slash*/ + strlen(k2) + 1;
-    str = (char *)malloc(sizeof(char) * len);
-    if(str)
-        sprintf(str, "%s/%s", k1, k2);
-    return str;
-}
 
 /**
 @brief Write FmsMetaData to the output I/O context.
@@ -1614,7 +1686,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc)
        strcmp(protocol, "silo") == 0 ||
        strcmp(protocol, "adios") == 0)
     {
-        FmsIOContextInitializeConduit(&ctx);
+        FmsIOContextInitializeConduit(&ctx, protocol);
         FmsIOFunctionsInitializeConduit(&io);
     }
     else
