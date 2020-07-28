@@ -1747,6 +1747,74 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
     return 0;
 }
 
+static int
+FmsIOReadFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOFieldInfo *field_info,
+    FmsIOFieldDescriptorInfo *fd_infos, FmsInt nfds) {
+    int err = 0;
+
+    // Get Field name
+    {
+        char *kfield_name = join_keys(key, "Name");
+        err = (*io->get_string)(ctx, kfield_name, &field_info->name);
+        FREE(kfield_name);
+        if(err)
+            E_RETURN(1);
+    }
+    
+    // Get layout type
+    {
+        char *klt = join_keys(key, "LayoutType");
+        FmsInt lt = 0;
+        err = (*io->get_int)(ctx, klt, &lt);
+        FREE(klt);
+        if(err)
+            E_RETURN(2);
+        field_info->layout = (FmsLayoutType)lt;
+    }
+
+    // Get Num vec components
+    {
+        char *knum_vec_comps = join_keys(key, "NumberOfVectorComponents");
+        err = (*io->get_int)(ctx, knum_vec_comps, &field_info->num_vec_comps);
+        FREE(knum_vec_comps);
+        if(err)
+            E_RETURN(3);
+    }
+
+    // Get field descriptor name
+    {
+        char *kfd_name = join_keys(key, "FieldDescriptorName");
+        err = (*io->get_string)(ctx, kfd_name, &field_info->fd_name);
+        FREE(kfd_name);
+        if(err)
+            E_RETURN(4);
+    }
+
+    // Get scalar data
+    {
+        char *kdata = join_keys(key, "Data");
+        err = (*io->get_scalar_array)(ctx, kdata, &field_info->data_type, &field_info->data, &field_info->data_size);
+        FREE(kdata);
+        if(err)
+            E_RETURN(5);
+    }
+    
+    // Check for MetaData
+    {
+        char *kmd = join_keys(key, "MetaData");
+        if((*io->has_path)(ctx, kmd))
+        {
+            /* TODO: Put the function call here when it's done
+            err = FmsIOReadFmsMetaData(ctx, io, kmd, md); */
+            err = 1;
+        }
+        FREE(kmd);
+        if(err)
+            E_RETURN(6); 
+    }
+    return 0;
+}
+
 /**
 @brief Write FmsDataCollection to the output I/O context.
 @param ctx The context
@@ -1887,7 +1955,7 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     FmsDataCollection dc = NULL;
     FmsMesh mesh = NULL;
     FmsMetaData md = NULL;
-    FmsInt i = 0;
+    FmsInt i = 0, nfds = 0, nfields = 0;
     const char *name = NULL;
     *data_collection = NULL;
     FmsIOFieldDescriptorInfo *fd_infos = NULL;
@@ -1913,7 +1981,6 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
 
     // Process FieldDescriptors
     {
-        FmsInt nfds = 0;
         char *knfds = join_keys(key, "NumberOfFieldDescriptors");
         err = (*io->get_int)(ctx, knfds, &nfds);
         FREE(knfds);
@@ -1942,7 +2009,6 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
 
     // Process Fields
     {
-        FmsInt nfields = 0;
         char *knfs = join_keys(key, "NumberOfFields");
         err = (*io->get_int)(ctx, knfs, &nfields);
         FREE(knfs);
@@ -1953,13 +2019,14 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
         if(nfields)
         {
             char *kfs = join_keys(key, "Fields");
+            field_infos = calloc(sizeof(FmsIOFieldInfo), nfields);
             err = 0;
             for(i = 0; i < nfields; i++)
             {
                 char tmp[20], *kfi = NULL;
                 sprintf(tmp, "%d", (int)i);
                 kfi = join_keys(kfs, tmp);
-                /* TODO: err |= FmsIOReadField(ctx, io, kfi, dc); */
+                err |= FmsIOReadFmsField(ctx, io, kfi, &field_infos[i], fd_infos, nfds);
                 FREE(kfi);
             }
             FREE(kfs);
