@@ -58,6 +58,9 @@ extern const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES];
 
 extern const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES];
 
+/// Get the enum representation of an int type from the string name.
+int FmsGetIntTypeFromName(const char * const name, FmsIntType *type);
+
 /// TODO: dox
 /** A mesh consists of:
     * mesh domains
@@ -313,6 +316,9 @@ typedef enum {
 extern const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES];
 
 extern const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES];
+
+/// Get the enum representation of an int type from the string name.
+int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type);
 
 /// TODO: dox
 typedef enum {

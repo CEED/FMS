@@ -867,6 +867,50 @@ int FmsGetInterfaceVersion(FmsInt *version) {
   return 0;
 }
 
+int FmsGetIntTypeFromName(const char * const name, FmsIntType *type) {
+  if(!name) E_RETURN(1);
+  if(!type) E_RETURN(2);
+
+  if(strcmp(FmsIntTypeNames[FMS_INT8], name) == 0)
+    *type = FMS_INT8;
+  else if(strcmp(FmsIntTypeNames[FMS_INT16], name) == 0)
+    *type = FMS_INT16;
+  else if(strcmp(FmsIntTypeNames[FMS_INT32], name) == 0)
+    *type = FMS_INT32;
+  else if(strcmp(FmsIntTypeNames[FMS_INT64], name) == 0)
+    *type = FMS_INT64;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT8], name) == 0)
+    *type = FMS_UINT8;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT16], name) == 0)
+    *type = FMS_UINT16;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT32], name) == 0)
+    *type = FMS_UINT32;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT64], name) == 0)
+    *type = FMS_UINT64;
+  else
+    E_RETURN(3);
+
+  return 0;
+}
+
+int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type) {
+  if(!name) E_RETURN(1);
+  if(!type) E_RETURN(2);
+
+  if(strcmp(FmsScalarTypeNames[FMS_FLOAT], name) == 0)
+    *type = FMS_FLOAT;
+  else if(strcmp(FmsScalarTypeNames[FMS_DOUBLE], name) == 0)
+    *type = FMS_DOUBLE;
+  else if(strcmp(FmsScalarTypeNames[FMS_COMPLEX_FLOAT], name) == 0)
+    *type = FMS_COMPLEX_FLOAT;
+  else if(strcmp(FmsScalarTypeNames[FMS_COMPLEX_DOUBLE], name) == 0)
+    *type = FMS_COMPLEX_DOUBLE;
+  else
+    E_RETURN(3);
+
+  return 0;
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* FmsMesh functions: construction */
