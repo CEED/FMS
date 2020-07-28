@@ -113,7 +113,15 @@ int main(int argc, const char *argv[]) {
     FmsIOWrite("simple_mesh.fms", argv[1], dc);
   else
     FmsIOWrite("simple_mesh.fms.ascii", NULL, dc);
+
+  FmsDataCollection new_dc = NULL;
+  if(argc > 1)
+    FmsIORead("simple_mesh.fms", argv[1], &new_dc);
+  else
+    FmsIORead("simple_mesh.fms.ascii", NULL, &new_dc);
 #endif
+
+
 
 
   // Destroy the data collection: destroys the FmsMesh and all other linked Fms

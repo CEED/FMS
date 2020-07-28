@@ -58,6 +58,10 @@
     macro(FMS_COMPLEX_FLOAT, float, "%f")   \
     macro(FMS_COMPLEX_DOUBLE, double, "%f")
 
+void *
+conduit_fetch_node_data_ptr(conduit_node *cnode,
+                            const char* path);
+
 /**
 @note borrowed from fms.c for a bit.
 */
@@ -139,10 +143,37 @@ typedef struct
     int (*add_string_array)(FmsIOContext *ctx, const char *path, const char **value, FmsInt n);
 
     /* TODO: functions for reading path+value*/
-    int (*get_int)(FmsIOContext *ctx, const char *path, int *value);
+    int (*has_path)(FmsIOContext *ctx, const char *path);
+    int (*get_int)(FmsIOContext *ctx, const char *path, FmsInt *value);
+    int (*get_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n);
+    int (*get_float)(FmsIOContext *ctx, const char *path, float *value);
+    int (*get_double)(FmsIOContext *ctx, const char *path, double *value);
+    int (*get_scalar_array)(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n);
+    int (*get_string)(FmsIOContext *ctx, const char *path, const char **value);
+    int (*get_string_array)(FmsIOContext *ctx, const char *path, const char ***value, FmsInt *n);
     /*...*/
 
 } FmsIOFunctions;
+
+// Struct used for building a FieldDescriptor on the read end
+typedef struct {
+    const char *name;
+    const char *component_name;
+    FmsFieldDescriptorType type;
+    FmsInt fixed_order[3];
+    FmsInt num_dofs;
+} FmsIOFieldDescriptorInfo;
+
+// Struct used for building a Field on the read end
+typedef struct {
+    const char *name;
+    FmsLayoutType layout;
+    FmsInt num_vec_comps;
+    const char *fd_name;
+    FmsInt data_size;
+    FmsScalarType data_type;
+    void *data; // Currently - should free
+} FmsIOFieldInfo;
 
 static char *
 join_keys(const char *k1, const char *k2)
@@ -468,6 +499,14 @@ FmsIOCloseConduit(FmsIOContext *ctx)
 }
 
 static int
+FmsIOHasPathConduit(FmsIOContext *ctx, const char *path)
+{
+    if(!ctx) E_RETURN(0);
+    if(!path) E_RETURN(0);
+    return conduit_node_has_child(ctx->root, path);
+}
+
+static int
 FmsIOAddIntConduit(FmsIOContext *ctx, const char *path, FmsInt value)
 {
     if(!ctx) E_RETURN(1);
@@ -578,13 +617,13 @@ FmsIOAddScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType ty
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
 
-    char *ktype = join_keys(path, "Type");
-    conduit_node_set_path_char8_str(ctx->root, ktype, FmsScalarTypeNames[type]);
-    FREE(ktype);
-
     char *ksize = join_keys(path, "Size");
     conduit_node_set_path_uint64(ctx->root, ksize, size);
     FREE(ksize);
+
+    char *ktype = join_keys(path, "Type");
+    conduit_node_set_path_char8_str(ctx->root, ktype, FmsScalarTypeNames[type]);
+    FREE(ktype);
 
     if(!data || size == 0)
         return 0;
@@ -622,21 +661,21 @@ FmsIOAddStringConduit(FmsIOContext *ctx, const char *path, const char *value)
     return 0;
 }
 
-int
-FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, int *value)
+static int
+FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, FmsInt *value)
 {
     conduit_node *node = NULL;
-    if(ctx) E_RETURN(1);
-    if(path) E_RETURN(2);
-    if(value) E_RETURN(3);
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!value) E_RETURN(3);
     if((node = conduit_node_fetch(ctx->root, path)) != NULL)
     {
         const conduit_datatype *dt = conduit_node_dtype(node);
-        if(!dt)
+        if(dt)
         {
             if(conduit_datatype_is_number(dt))
             {
-                *value = conduit_node_fetch_path_as_int(ctx->root, path);
+                *value = (FmsInt)conduit_node_fetch_path_as_int64(ctx->root, path);
             }
             else
             {
@@ -649,6 +688,164 @@ FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, int *value)
         E_RETURN(4);
     }
     return 0;
+}
+
+/*int (*get_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n);*/
+static int
+FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n)
+{
+    conduit_node *node = NULL;
+    char *type_str = NULL;
+    void *conduit_data_ptr = NULL;
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!type) E_RETURN(3);
+    if(!values) E_RETURN(4);
+    if(!n) E_RETURN(5);
+
+    if(!conduit_node_has_path(ctx->root, path))
+        E_RETURN(6);
+
+    if((node = conduit_node_fetch(ctx->root, path)) == NULL)
+        E_RETURN(7);
+
+    /* Arrays are written with subnodes Size, Type, and Values */
+    if(!conduit_node_has_child(node, "Size"))
+        E_RETURN(8);
+    *n = (FmsInt)conduit_node_fetch_path_as_int64(node, "Size");
+
+    if(!conduit_node_has_child(node, "Type"))
+        E_RETURN(9);
+    
+    if((type_str = conduit_node_fetch_path_as_char8_str(node, "Type")) == NULL)
+        E_RETURN(10);
+
+    if(FmsGetIntTypeFromName(type_str, type))
+        E_RETURN(11);
+    
+    if(n == 0)
+    {
+        *values = NULL;
+        return 0;
+    }
+
+    if(!conduit_node_has_child(node, "Values"))
+        E_RETURN(12);
+
+    conduit_data_ptr = conduit_node_element_ptr(conduit_node_fetch(node, "Values"), 0);
+
+    /* Need to copy the data out of conduit - right? */
+    switch(*type)
+    {
+    #define COPY_DATA(typename, T, format) \
+        case typename: \
+        { \
+            void *dest = malloc(sizeof(T) * *n); \
+            memcpy(dest, conduit_data_ptr, sizeof(T) * *n); \
+            *values = dest; \
+            break; \
+        }
+        FOR_EACH_INT_TYPE(COPY_DATA)
+    #undef COPY_DATA
+        default:
+            E_RETURN(13);
+    }
+
+    return 0;
+}
+
+/* int (*get_scalar_array)(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n); */
+static int
+FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n)
+{
+    conduit_node *node = NULL;
+    char *type_str = NULL;
+    void *conduit_data_ptr = NULL;
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!type) E_RETURN(3);
+    if(!values) E_RETURN(4);
+    if(!n) E_RETURN(5);
+
+    /* Arrays are written with subnodes Size, Type, and Values */
+    if((node = conduit_node_fetch(ctx->root, path)) == NULL)
+        E_RETURN(6);
+
+    if((type_str = conduit_node_fetch_path_as_char8_str(node, "Type")) == NULL)
+        E_RETURN(7);
+
+    if(FmsGetScalarTypeFromName(type_str, type))
+        E_RETURN(8);
+
+    
+    if(!conduit_node_has_child(node, "Size"))
+        E_RETURN(9);
+
+    *n = (FmsInt)conduit_node_fetch_path_as_int64(node, "Size");
+
+    if(n == 0)
+    {
+        *values = NULL;
+        return 0;
+    }
+
+    if(!conduit_node_has_child(node, "Values"))
+        E_RETURN(10);
+
+    conduit_data_ptr = conduit_node_element_ptr(conduit_node_fetch(node, "Values"), 0);
+
+    /* Need to copy the data out of conduit - right? */
+    switch(*type)
+    {
+    #define COPY_DATA(typename, T, format) \
+        case typename: \
+        { \
+            void *dest = malloc(sizeof(T) * *n); \
+            memcpy(dest, conduit_data_ptr, sizeof(T) * *n); \
+            *values = dest; \
+            break; \
+        }
+        FOR_EACH_SCALAR_TYPE(COPY_DATA)
+    #undef COPY_DATA
+        default:
+            E_RETURN(11);
+    }
+
+    return 0;
+}
+
+/* int (*get_string)(FmsIOContext *ctx, const char *path, char **value); */
+static int
+FmsIOGetStringConduit(FmsIOContext *ctx, const char *path, const char **value)
+{
+    conduit_node *node = NULL;
+    const conduit_datatype *dt = NULL;
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!value) E_RETURN(3);
+
+    if(!conduit_node_has_path(ctx->root, path))
+        E_RETURN(4);
+
+    if((node = conduit_node_fetch(ctx->root, path)) == NULL)
+        E_RETURN(5);
+
+    dt = conduit_node_dtype(node);
+
+    if(!conduit_datatype_is_char8_str(dt))
+        E_RETURN(6);
+
+    *value = conduit_node_fetch_path_as_char8_str(ctx->root, path);
+    
+    return 0;
+}
+
+/*  int (*get_string_array)(FmsIOContext *ctx, const char *path, char ***value, FmsInt *n); */
+static int
+FmsIOGetStringArrayConduit(FmsIOContext *ctx, const char *path, const char ***values, FmsInt *n)
+{
+    /* TODO: */
+    E_RETURN(1);
 }
 
 #ifdef MEANDERING_THOUGHTS
@@ -794,7 +991,12 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj)
         obj->add_string = FmsIOAddStringConduit;
         obj->add_scalar_array = FmsIOAddScalarArrayConduit;
         /*...*/
+        obj->has_path = FmsIOHasPathConduit;
         obj->get_int = FmsIOGetIntConduit;
+        obj->get_typed_int_array = FmsIOGetTypedIntArrayConduit;
+        obj->get_scalar_array = FmsIOGetScalarArrayConduit;
+        obj->get_string = FmsIOGetStringConduit;
+        obj->get_string_array = FmsIOGetStringArrayConduit;
 #ifdef MEANDERING_THOUGHTS
         obj->begin_list = FmsIOBeginListConduit;
         obj->end_list = FmsIOEndListConduit;
@@ -1234,18 +1436,15 @@ FmsIOWriteTag(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsTag tag
         char temp[20], *kd;
         switch(tag_type)
         {
-        #define templated_cast(T)           \
+        #define templated_cast(typename, T, format) \
+            case typename: \
+            { \
             const T *tvs = (const T*)tagvalues;   \
-            sprintf(temp, "%d", (int)tvs[i]); 
+            sprintf(temp, format, tvs[i]); \
+            break; \
+            }
 
-            case FMS_INT8:   { templated_cast(int8_t); break; }
-            case FMS_INT16:  { templated_cast(int16_t); break; }
-            case FMS_INT32:  { templated_cast(int32_t); break; }
-            case FMS_INT64:  { templated_cast(int64_t); break; }
-            case FMS_UINT8:  { templated_cast(uint8_t); break; }
-            case FMS_UINT16: { templated_cast(uint16_t); break; }
-            case FMS_UINT32: { templated_cast(uint32_t); break; }
-            case FMS_UINT64: { templated_cast(uint64_t); break; }
+            FOR_EACH_INT_TYPE(templated_cast)
             default: E_RETURN(6);
         #undef templated_cast
         }
@@ -1361,8 +1560,6 @@ static int
 FmsIOWriteFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, 
     FmsFieldDescriptor fd)
 {
-    /** TODO: write me */
-
     // Write the fd's name
     const char *fd_name = NULL;
     if(FmsFieldDescriptorGetName(fd, &fd_name))
@@ -1423,6 +1620,65 @@ FmsIOWriteFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *
     return 0;
 }
 
+static int
+FmsIOReadFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOFieldDescriptorInfo *fd_info)
+{
+    int err = 0;
+
+    // Get the fd's name
+    {
+        char *kfd_name = join_keys(key, "Name");
+        err = (*io->get_string)(ctx, kfd_name, &fd_info->name);
+        FREE(kfd_name);
+        if(err)
+            E_RETURN(1);
+    }
+
+    // Get which compoenent the fd refers to   
+    {
+        char *kcomp_name = join_keys(key, "ComponentName");
+        err = (*io->get_string)(ctx, kcomp_name, &fd_info->component_name);
+        FREE(kcomp_name);
+        if(err)
+            E_RETURN(2);
+    }
+
+    // Get the fd type
+    {
+        char *kfd_type = join_keys(key, "Type");
+        FmsInt fdt = 0;
+        err = (*io->get_int)(ctx, kfd_type, &fdt);
+        FREE(kfd_type);
+        if(err)
+            E_RETURN(3);
+        fd_info->type = (FmsFieldDescriptorType)fdt;
+    }
+    // (There is not setter for fd_type, might not have to write or read)
+
+    // Get FixedOrder
+    {
+        char *kfo = join_keys(key, "FixedOrder");
+        FmsIntType type;
+        FmsInt n = 0;
+        err = (*io->get_typed_int_array)(ctx, kfo, &type, (void*)fd_info->fixed_order, &n);
+        FREE(kfo);
+        // We know is is an array of FmsInts that is length 3
+        if(err || type != FMS_UINT64 || n != 3u)
+            E_RETURN(4);
+    }
+
+    // Get ndofs, no setter either, might not have to write or read
+    {
+        char *kndofs = join_keys(key, "NumDofs");
+        err = (*io->get_int)(ctx, kndofs, &fd_info->num_dofs);
+        FREE(kndofs);
+        if(err)
+            E_RETURN(5);
+    }
+
+    return 0;
+}
+
 /**
 @brief Write FmsField to the output I/O context.
 @param ctx The context
@@ -1434,8 +1690,6 @@ FmsIOWriteFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *
 static int
 FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsField field)
 {
-    /** TODO: write me */
-
     const char *field_name;
     if(FmsFieldGetName(field, &field_name))
         E_RETURN(1);
@@ -1529,18 +1783,17 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
     if(FmsDataCollectionGetFieldDescriptors(dc, &fds, &num_fds) == 0)
     {
-        char *fd_key = NULL, *fdlen_key = NULL;
-        fd_key = join_keys(key, "FieldDescriptors");
+        char *fd_key = NULL, *nfds_key = NULL;
 
-        fdlen_key = join_keys(fd_key, "Length");
-        if((*io->add_int)(ctx, fd_key, num_fds) != 0)
+        nfds_key = join_keys(key, "NumberOfFieldDescriptors");
+        if((*io->add_int)(ctx, nfds_key, num_fds) != 0)
         {
-            FREE(fd_key);
-            FREE(fdlen_key);
+            FREE(nfds_key);
             E_RETURN(2);
         }
-        FREE(fdlen_key);
+        FREE(nfds_key);
 
+        fd_key = join_keys(key, "FieldDescriptors");
         for(i = 0; i < num_fds && err == 0; ++i)
         {
              char tmp[20], *fdi_key = NULL;
@@ -1564,18 +1817,16 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
     if(FmsDataCollectionGetFields(dc, &fields, &num_fields) == 0)
     {
-        char *f_key = NULL, *flen_key = NULL;
-        f_key = join_keys(key, "Fields");
-
-        flen_key = join_keys(f_key, "Length");
-        if((*io->add_int)(ctx, f_key, num_fields) != 0)
+        char *f_key = NULL, *nfs_key = NULL;
+        nfs_key = join_keys(key, "NumberOfFields");
+        if((*io->add_int)(ctx, nfs_key, num_fields) != 0)
         {
-            FREE(f_key);
-            FREE(flen_key);
+            FREE(nfs_key);
             E_RETURN(5);
         }
-        FREE(flen_key);
+        FREE(nfs_key);
 
+        f_key = join_keys(key, "Fields");
         for(i = 0; i < num_fields && err == 0; ++i)
         {
              char tmp[20], *fi_key = NULL;
@@ -1630,9 +1881,121 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
 static int
 FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
-    FmsDataCollection *dc)
+    FmsDataCollection *data_collection)
 {
-    /*TODO: write me. We should be able to mostly copy structure of FmsIOWriteFmsDataCollection */
+    if(!ctx) E_RETURN(1);
+    if(!io) E_RETURN(2);
+    if(!key) E_RETURN(3);
+    if(!data_collection) E_RETURN(4);
+    int err = 0;
+    FmsDataCollection dc = NULL;
+    FmsMesh mesh = NULL;
+    FmsMetaData md = NULL;
+    FmsInt i = 0;
+    const char *name = NULL;
+    *data_collection = NULL;
+    FmsIOFieldDescriptorInfo *fd_infos = NULL;
+    FmsIOFieldInfo *field_infos = NULL;
+
+    // Process DataCollection's Name
+    {
+        char *kname = join_keys(key, "Name");
+        err = (*io->get_string)(ctx, kname, &name);
+        FREE(kname);
+        if(err)
+            E_RETURN(5);
+    }
+
+    if(!name)
+        E_RETURN(6);
+
+    // Start building our DataCollection, this requires that mesh not be NULL
+    if(FmsMeshConstruct(&mesh))
+        E_RETURN(7);
+    if(FmsDataCollectionCreate(mesh, name, &dc))
+        E_RETURN(7);
+
+    // Process FieldDescriptors
+    {
+        FmsInt nfds = 0;
+        char *knfds = join_keys(key, "NumberOfFieldDescriptors");
+        err = (*io->get_int)(ctx, knfds, &nfds);
+        FREE(knfds);
+        if(err)
+            E_RETURN(8);
+
+        // Make sure there were actually any FieldDescriptors
+        if(nfds)
+        {
+            char *kfds = join_keys(key, "FieldDescriptors");
+            fd_infos = calloc(sizeof(FmsIOFieldDescriptorInfo), nfds);
+            err = 0;
+            for(i = 0; i < nfds; i++)
+            {
+                char tmp[20], *kfdi = NULL;
+                sprintf(tmp, "%d", (int)i);
+                kfdi = join_keys(kfds, tmp);
+                err |= FmsIOReadFmsFieldDescriptor(ctx, io, kfdi, &fd_infos[i]);
+                FREE(kfdi);
+            }
+            FREE(kfds);
+            if(err)
+                E_RETURN(8);
+        }
+    }
+
+    // Process Fields
+    {
+        FmsInt nfields = 0;
+        char *knfs = join_keys(key, "NumberOfFields");
+        err = (*io->get_int)(ctx, knfs, &nfields);
+        FREE(knfs);
+        if(err)
+            E_RETURN(9);
+
+        // Make sure there were actually any Fields
+        if(nfields)
+        {
+            char *kfs = join_keys(key, "Fields");
+            err = 0;
+            for(i = 0; i < nfields; i++)
+            {
+                char tmp[20], *kfi = NULL;
+                sprintf(tmp, "%d", (int)i);
+                kfi = join_keys(kfs, tmp);
+                /* TODO: err |= FmsIOReadField(ctx, io, kfi, dc); */
+                FREE(kfi);
+            }
+            FREE(kfs);
+            if(err)
+                E_RETURN(10);
+        }
+    }
+
+    // Process mesh
+    {
+        char *kmesh = join_keys(key, "Mesh");
+        /* TODO: err = FmsIOReadMesh(ctx, io, kmesh, dc, mesh);  */
+        FREE(kmesh);
+        if(err)
+            E_RETURN(11);
+    }
+
+
+    // Process MetaData (if we have it)
+    {
+        char *kmd = join_keys(key, "MetaData");
+        if((*io->has_path)(ctx, kmd))
+        {
+            err = FmsDataCollectionAttachMetaData(dc, &md);
+            // if(md)
+                /* TODO: err = FmsIOReadFmsMetaData(ctx, io, kmd, md); */
+        }
+        FREE(kmd);
+        if(err)
+            E_RETURN(12);
+    }
+
     return 0;
 }
 
@@ -1705,7 +2068,7 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
     FmsIOFunctions io;
 
     if(!filename) E_RETURN(1);
-    if(!protocol) E_RETURN(2);
+    if(!protocol) protocol = "ascii";
     if(!dc) E_RETURN(3);
 
 #ifdef FMS_HAVE_CONDUIT
@@ -1732,7 +2095,8 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
     /* "open" the file. */
     if((*io.open)(&ctx, filename, "r") == 0)
     {
-        int err = 0, version = 0;
+        int err = 0;
+        FmsInt version = 0;
         err = (*io.get_int)(&ctx, "FMS", &version);
         if(err != 0 || version != (int)FMS_INTERFACE_VERSION)
         {
