@@ -58,10 +58,6 @@
     macro(FMS_COMPLEX_FLOAT, float, "%f")   \
     macro(FMS_COMPLEX_DOUBLE, double, "%f")
 
-void *
-conduit_fetch_node_data_ptr(conduit_node *cnode,
-                            const char* path);
-
 /**
 @note borrowed from fms.c for a bit.
 */
