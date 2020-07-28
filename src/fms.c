@@ -911,6 +911,32 @@ int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type) {
   return 0;
 }
 
+int FmsGetEntityTypeFromName(const char * const name, FmsEntityType *ent_type) {
+  if(!name) E_RETURN(1);
+  if(!ent_type) E_RETURN(2);
+
+  if(strcmp(FmsEntityTypeNames[FMS_VERTEX], name) == 0)
+    *ent_type = FMS_VERTEX;
+  else if(strcmp(FmsEntityTypeNames[FMS_EDGE], name) == 0)
+    *ent_type = FMS_EDGE;
+  else if(strcmp(FmsEntityTypeNames[FMS_TRIANGLE], name) == 0)
+    *ent_type = FMS_TRIANGLE;
+  else if(strcmp(FmsEntityTypeNames[FMS_QUADRILATERAL], name) == 0)
+    *ent_type = FMS_QUADRILATERAL;
+  else if(strcmp(FmsEntityTypeNames[FMS_TETRAHEDRON], name) == 0)
+    *ent_type = FMS_TETRAHEDRON;
+  else if(strcmp(FmsEntityTypeNames[FMS_HEXAHEDRON], name) == 0)
+    *ent_type = FMS_HEXAHEDRON;
+  else if(strcmp(FmsEntityTypeNames[FMS_WEDGE], name) == 0)
+    *ent_type = FMS_WEDGE;
+  else if(strcmp(FmsEntityTypeNames[FMS_PYRAMID], name) == 0)
+    *ent_type = FMS_PYRAMID;
+  else
+    E_RETURN(3);
+
+  return 0;
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* FmsMesh functions: construction */

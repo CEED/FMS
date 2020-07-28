@@ -236,6 +236,8 @@ typedef enum {
 /// String representations of each entity type.
 extern const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES];
 
+int FmsGetEntityTypeFromName(const char * const name, FmsEntityType *ent_type);
+
 /// Dimensions of the entity types.
 extern const FmsInt FmsEntityDim[FMS_NUM_ENTITY_TYPES];
 
