@@ -56,6 +56,11 @@ typedef enum {
 
 extern const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES];
 
+extern const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES];
+
+/// Get the enum representation of an int type from the string name.
+int FmsGetIntTypeFromName(const char * const name, FmsIntType *type);
+
 /// TODO: dox
 /** A mesh consists of:
     * mesh domains
@@ -228,6 +233,9 @@ typedef enum {
   FMS_NUM_ENTITY_TYPES
 } FmsEntityType;
 
+/// String representations of each entity type.
+extern const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES];
+
 /// Dimensions of the entity types.
 extern const FmsInt FmsEntityDim[FMS_NUM_ENTITY_TYPES];
 
@@ -307,6 +315,11 @@ typedef enum {
 
 extern const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES];
 
+extern const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES];
+
+/// Get the enum representation of an int type from the string name.
+int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type);
+
 /// TODO: dox
 typedef enum {
   FMS_FIXED_ORDER
@@ -343,8 +356,11 @@ typedef enum {
   FMS_INTEGER,
   FMS_SCALAR,
   FMS_STRING,
-  FMS_META_DATA
+  FMS_META_DATA,
+  FMS_NUM_METADATA_TYPES
 } FmsMetaDataType;
+
+extern const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES];
 
 /// TODO: dox
 /** A meta-data structure contains:

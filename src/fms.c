@@ -155,6 +155,28 @@ const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES] = {
   1, 2, 4, 8, 1, 2, 4, 8
 };
 
+const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES] = {
+  "FMS_INT8",
+  "FMS_INT16",
+  "FMS_INT32",
+  "FMS_INT64",
+  "FMS_UINT8",
+  "FMS_UINT16",
+  "FMS_UINT32",
+  "FMS_UINT64",
+};
+
+const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES] = {
+  "FMS_VERTEX",
+  "FMS_EDGE",
+  "FMS_TRIANGLE",
+  "FMS_QUADRILATERAL",
+  "FMS_TETRAHEDRON",
+  "FMS_HEXAHEDRON",
+  "FMS_WEDGE",
+  "FMS_PYRAMID"
+};
+
 const FmsInt FmsEntityDim[FMS_NUM_ENTITY_TYPES] = {
   0, 1, 2, 2, 3, 3, 3, 3
 };
@@ -169,6 +191,20 @@ const FmsInt FmsEntityNumVerts[FMS_NUM_ENTITY_TYPES] = {
 
 const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES] = {
   sizeof(float), sizeof(double), 2*sizeof(float), 2*sizeof(double)
+};
+
+const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES] = {
+  "FMS_FLOAT",
+  "FMS_DOUBLE",
+  "FMS_COMPLEX_FLOAT",
+  "FMS_COMPLEX_DOUBLE",
+};
+
+const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES] = {
+  "FMS_INTEGER",
+  "FMS_SCALAR",
+  "FMS_STRING",
+  "FMS_META_DATA",
 };
 
 
@@ -828,6 +864,50 @@ static inline void FmsPermuteQuadBdr(FmsOrientation ori, const FmsInt *e_in,
 int FmsGetInterfaceVersion(FmsInt *version) {
   if (!version) { E_RETURN(1); }
   *version = FMS_INTERFACE_VERSION;
+  return 0;
+}
+
+int FmsGetIntTypeFromName(const char * const name, FmsIntType *type) {
+  if(!name) E_RETURN(1);
+  if(!type) E_RETURN(2);
+
+  if(strcmp(FmsIntTypeNames[FMS_INT8], name) == 0)
+    *type = FMS_INT8;
+  else if(strcmp(FmsIntTypeNames[FMS_INT16], name) == 0)
+    *type = FMS_INT16;
+  else if(strcmp(FmsIntTypeNames[FMS_INT32], name) == 0)
+    *type = FMS_INT32;
+  else if(strcmp(FmsIntTypeNames[FMS_INT64], name) == 0)
+    *type = FMS_INT64;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT8], name) == 0)
+    *type = FMS_UINT8;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT16], name) == 0)
+    *type = FMS_UINT16;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT32], name) == 0)
+    *type = FMS_UINT32;
+  else if(strcmp(FmsIntTypeNames[FMS_UINT64], name) == 0)
+    *type = FMS_UINT64;
+  else
+    E_RETURN(3);
+
+  return 0;
+}
+
+int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type) {
+  if(!name) E_RETURN(1);
+  if(!type) E_RETURN(2);
+
+  if(strcmp(FmsScalarTypeNames[FMS_FLOAT], name) == 0)
+    *type = FMS_FLOAT;
+  else if(strcmp(FmsScalarTypeNames[FMS_DOUBLE], name) == 0)
+    *type = FMS_DOUBLE;
+  else if(strcmp(FmsScalarTypeNames[FMS_COMPLEX_FLOAT], name) == 0)
+    *type = FMS_COMPLEX_FLOAT;
+  else if(strcmp(FmsScalarTypeNames[FMS_COMPLEX_DOUBLE], name) == 0)
+    *type = FMS_COMPLEX_DOUBLE;
+  else
+    E_RETURN(3);
+
   return 0;
 }
 

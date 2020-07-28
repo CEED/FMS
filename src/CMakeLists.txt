@@ -18,7 +18,10 @@ set(FMS_SOURCES fms.c fmsio.c)
 set(FMS_HEADERS fms.h fmsio.h)
 
 add_library(fms ${FMS_SOURCES} ${FMS_HEADERS})
-set_property(TARGET fms PROPERTY C_STANDARD 99)
+set_target_properties(fms
+  PROPERTIES
+    C_STANDARD 99
+    C_EXTENSIONS OFF)
 
 target_include_directories(fms PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
