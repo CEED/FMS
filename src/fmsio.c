@@ -171,6 +171,62 @@ typedef struct {
     void *data; // Currently - should free
 } FmsIOFieldInfo;
 
+// Struct used to define entities in a domain
+typedef struct {
+    FmsEntityType ent_type;
+    FmsInt nents;
+    FmsInt size;
+    FmsIntType type;
+    void *values; // Currently - should free
+} FmsIOEntityInfo;
+
+// Struct used to build a domain
+typedef struct {
+    FmsInt dim; // Implies length of entities array
+    FmsInt nverts;
+    FmsIOEntityInfo *entities;
+} FmsIODomainInfo;
+
+// Struct used for holding domain name info
+typedef struct {
+    const char *name;
+    FmsInt ndomains;
+    FmsIODomainInfo *domains;
+} FmsIODomainNameInfo;
+
+typedef struct {
+    const char *domain_name;
+    FmsInt domain_id;
+    FmsInt full_domain; // Boolean
+    FmsEntityType part_ent_type;
+    FmsIOEntityInfo entities[FMS_NUM_ENTITY_TYPES];
+} FmsIOComponentPartInfo;
+
+// Struct used for building components
+typedef struct {
+    const char *name;
+    FmsInt dim;
+    FmsInt nents;
+    const char *coordinates_name;
+    FmsInt nparts;
+    FmsIOComponentPartInfo *parts;
+    FmsInt relation_size;
+    FmsIntType relation_type;
+    void *relation_values;
+} FmsIOComponentInfo;
+
+// Struct used for building a Mesh
+typedef struct {
+    FmsInt partition_info[2];
+    FmsInt ndomain_names;
+    FmsInt ncomponents;
+    FmsInt ntags;
+    FmsIODomainNameInfo *domain_names;
+    FmsIOComponentInfo *components;
+    // FmsIOTagInfo *tags;
+
+} FmsIOMeshInfo;
+
 static char *
 join_keys(const char *k1, const char *k2)
 {
@@ -499,7 +555,7 @@ FmsIOHasPathConduit(FmsIOContext *ctx, const char *path)
 {
     if(!ctx) E_RETURN(0);
     if(!path) E_RETURN(0);
-    return conduit_node_has_child(ctx->root, path);
+    return conduit_node_has_path(ctx->root, path);
 }
 
 static int
@@ -719,7 +775,7 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
     if(FmsGetIntTypeFromName(type_str, type))
         E_RETURN(11);
     
-    if(n == 0)
+    if(*n == 0)
     {
         *values = NULL;
         return 0;
@@ -730,7 +786,9 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
 
     conduit_data_ptr = conduit_node_element_ptr(conduit_node_fetch(node, "Values"), 0);
 
-    /* Need to copy the data out of conduit - right? */
+    /* TODO fix this - can't do a switch over our types because conduit is probably using a signed pointer.
+        Maybe use conduit_datatype_is_signed()
+        or do if/else if over each conduit_datatype for the correct one  */
     switch(*type)
     {
     #define COPY_DATA(typename, T, format) \
@@ -1215,6 +1273,73 @@ FmsIOWriteFmsDomain(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
 }
 
 static int
+FmsIOReadFmsDomain(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIODomainInfo *dinfo) {
+    int err = 0;
+    if(!dinfo)
+        E_RETURN(1);
+
+    // Get dimension
+    {
+        char *kdom = join_keys(key, "Dimension");
+        err = (*io->get_int)(ctx, kdom, &dinfo->dim);
+        FREE(kdom);
+        if(err)
+            E_RETURN(2);
+    }
+
+    // Get Num verticies
+    {
+        char *knverts = join_keys(key, "NumVertices");
+        err = (*io->get_int)(ctx, knverts, &dinfo->nverts);
+        FREE(knverts);
+        if(err)
+            E_RETURN(3);
+    }
+
+    if(dinfo->dim)
+    {
+        char *kentities = join_keys(key, "Entities");
+        FmsInt i = 0;
+        dinfo->entities = calloc(sizeof(FmsIOEntityInfo), dinfo->dim);
+        for(i = 0; i < dinfo->dim; i++)
+        {
+            char temp[21], *ke = NULL;
+            sprintf(temp, FMS_LU, i);
+            ke = join_keys(kentities, temp);
+
+            // Get EntityType
+            {
+                char *kent_type = join_keys(ke, "EntityType");
+                const char *ent_name = NULL;
+                err = (*io->get_string)(ctx, kent_type, &ent_name);
+                FREE(kent_type);
+                if(err)
+                    E_RETURN(4);
+                if(FmsGetEntityTypeFromName(ent_name, &dinfo->entities[i].ent_type))
+                    E_RETURN(5);
+            }
+
+            // Get NumEnts
+            {
+                char *knents = join_keys(ke, "NumEntities");
+                err = (*io->get_int)(ctx, knents, &dinfo->entities[i].nents);
+                FREE(knents);
+                if(err)
+                    E_RETURN(6);
+            }
+
+            // Get Entity array
+            err = (*io->get_typed_int_array)(ctx, ke, &dinfo->entities[i].type, 
+                &dinfo->entities[i].values, &dinfo->entities[i].size);
+            FREE(ke);
+            if(err)
+                E_RETURN(7);
+        }
+    }
+    return 0;
+}
+
+static int
 FmsIOWriteDomains(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     FmsMesh mesh, FmsInt di)
 {
@@ -1248,6 +1373,50 @@ FmsIOWriteDomains(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     return 0;
 }
 
+static int
+FmsIOReadFmsDomainName(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIODomainNameInfo *dinfo) {
+    int err = 0;
+    if(!dinfo)
+        E_RETURN(1);
+
+    // Get domain name
+    {
+        char *kdname = join_keys(key, "Name");
+        err = (*io->get_string)(ctx, kdname, &dinfo->name);
+        FREE(kdname);
+        if(err)
+            E_RETURN(2);
+    }
+
+    // Get number of domains
+    {
+        char *kndoms = join_keys(key, "NumDomains");
+        err = (*io->get_int)(ctx, kndoms, &dinfo->ndomains);
+        FREE(kndoms);
+        if(err)
+            E_RETURN(3);
+    }
+
+    // Read the domains (if we have any)
+    if(dinfo->ndomains)
+    {
+        char *kdoms = join_keys(key, "Domains");
+        FmsInt i = 0;
+        dinfo->domains = calloc(sizeof(FmsIODomainInfo), dinfo->ndomains);
+        for(i = 0; i < dinfo->ndomains; i++)
+        {
+            char temp[21], *kd = NULL;
+            sprintf(temp, FMS_LU, i);
+            kd = join_keys(kdoms, temp);
+            err |= FmsIOReadFmsDomain(ctx, io, kd, &dinfo->domains[i]);
+            FREE(kd);
+        }
+        if(err)
+            E_RETURN(4);
+    }
+    return 0;
+}
+
 /**
 @brief Write FmsMesh to the output I/O context.
 @param ctx The context
@@ -1277,6 +1446,7 @@ FmsIOWriteComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsC
     if(FmsComponentGetNumEntities(comp, &nents))
         E_RETURN(3);
     char *knents = join_keys(key, "NumEntities");
+    (*io->add_int)(ctx, knents, nents);
     FREE(knents);
 
     FmsField coords = NULL;
@@ -1381,6 +1551,158 @@ FmsIOWriteComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsC
     (*io->add_int_array)(ctx, krelations, rel_comps, nrelcomps);
     FREE(krelations);
 
+    return 0;
+}
+
+static int
+FmsIOReadFmsComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOComponentInfo *comp_info) {
+    int err = 0;
+    if(!comp_info) E_RETURN(1);
+
+    // Get Component name
+    {
+        char *kcomp_name = join_keys(key, "Name");
+        err = (*io->get_string)(ctx, kcomp_name, &comp_info->name);
+        FREE(kcomp_name);
+        if(err)
+            E_RETURN(2);
+    }
+
+    // Get dim
+    {
+        char *kcomp_dim = join_keys(key, "Dimension");
+        err = (*io->get_int)(ctx, kcomp_dim, &comp_info->dim);
+        FREE(kcomp_dim);
+        if(err)
+            E_RETURN(3);
+    }
+
+    {
+        char *knents = join_keys(key, "NumEntities");
+        err = (*io->get_int)(ctx, knents, &comp_info->nents);
+        FREE(knents);
+        if(err)
+            E_RETURN(4);
+    }
+
+    /// Not all components have Coords
+    {
+        char *kcoords = join_keys(key, "Coordinates");
+        if((*io->has_path)(ctx, kcoords))
+            err = (*io->get_string)(ctx, kcoords, &comp_info->coordinates_name);
+        FREE(kcoords);
+        if(err)
+            E_RETURN(5);
+    }
+
+    {
+        char *knparts = join_keys(key, "NumParts");
+        err = (*io->get_int)(ctx, knparts, &comp_info->nparts);
+        FREE(knparts);
+        if(err)
+            E_RETURN(6);
+    }
+
+    // If we have parts get their info
+    if(comp_info->nparts)
+    {
+        char *kparts = join_keys(key, "Parts");
+        FmsInt i, et;
+        comp_info->parts = calloc(sizeof(FmsIOComponentPartInfo), comp_info->nparts);
+        for(i = 0; i < comp_info->nparts; i++)
+        {
+            char temp[21], *kpart = NULL;
+            sprintf(temp, FMS_LU, i);
+            kpart = join_keys(kparts, temp);
+            
+            // Get the DomainName for this part
+            {
+                char *kdom_name = join_keys(kpart, "DomainName");
+                err = (*io->get_string)(ctx, kdom_name, &comp_info->parts[i].domain_name);
+                FREE(kdom_name);
+                if(err)
+                    E_RETURN(7);
+            }
+
+            // Get the domain id for this part
+            {
+                char *kdid = join_keys(kpart, "DomainID");
+                err = (*io->get_int)(ctx, kdid, &comp_info->parts[i].domain_id);
+                FREE(kdid);
+                if(err)
+                    E_RETURN(8);
+            }
+
+            // Check to see if this is a FullDomain part, this part will be complete if true
+            {
+                char *kfulldomain = join_keys(kpart, "FullDomain");
+                if((*io->has_path)(ctx, kfulldomain))
+                {
+                    const char *isfulldomain = NULL;
+                    err = (*io->get_string)(ctx, kfulldomain, &isfulldomain);
+                    if(err)
+                        E_RETURN(9);
+                    // Special case, this part is now complete
+                    if(strcmp("Yes", isfulldomain) == 0)
+                    {
+                        comp_info->parts[i].full_domain = 1;
+                        FREE(kfulldomain); FREE(kpart);
+                        continue;
+                    }
+                }
+                comp_info->parts[i].full_domain = 0;
+                FREE(kfulldomain);
+            }
+
+            // If this was not a full domain then we have to figure out the entity & subentities
+            {
+                char *kentity = join_keys(kpart, "PartEntityType");
+                const char *str = NULL;
+                err = (io->get_string)(ctx, kentity, &str);
+                FREE(kentity);
+                if(err)
+                    E_RETURN(10);
+                if(FmsGetEntityTypeFromName(str, &comp_info->parts[i].part_ent_type))
+                    E_RETURN(11);
+            }
+
+            // Entity type is encoded into the key for these
+            for(et = 0; et < FMS_NUM_ENTITY_TYPES; et++)
+            {
+                char *k = join_keys(kpart, FmsEntityTypeNames[et]);
+                if((*io->has_path)(ctx, k))
+                {
+                    // Now we have to populate the entitiy info
+                    comp_info->parts[i].entities[et].ent_type = et;
+                
+                    // Get nents
+                    {
+                        char *knents = join_keys(k, "NumEntities");
+                        err = (*io->get_int)(ctx, knents, &comp_info->parts[i].entities[et].nents);
+                        FREE(knents);
+                    }
+
+                    err |= (*io->get_typed_int_array)(ctx, k, &comp_info->parts[i].entities[et].type,
+                        &comp_info->parts[i].entities[et].values, &comp_info->parts[i].entities[et].size);
+                }
+                FREE(k);
+                if(err)
+                    E_RETURN(12);
+            }
+            FREE(kpart);
+        }
+        FREE(kparts);
+    }
+
+    // Finally get the relations
+    {
+        char *krelcomps = join_keys(key, "Relations");
+        err = (*io->get_typed_int_array)(ctx, krelcomps, &comp_info->relation_type,
+            &comp_info->relation_values, &comp_info->relation_size);
+        FREE(krelcomps);
+        if(err)
+            E_RETURN(13);
+    }
     return 0;
 }
 
@@ -1541,6 +1863,120 @@ FmsIOWriteFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsMes
     }
     FREE(ktags);
 
+    return 0;
+}
+
+static int
+FmsIOReadFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOMeshInfo *mesh_info) {\
+    int err = 0;
+    FmsInt i = 0;
+    if(!mesh_info) E_RETURN(1);
+
+    // Get partition info
+    {
+        char *kpinfo = join_keys(key, "PartitionInfo");
+        FmsIntType type;
+        FmsInt n = 0;
+        err = (*io->get_typed_int_array)(ctx, kpinfo, &type, (void*)&mesh_info->partition_info, &n);
+        FREE(kpinfo);
+        if(err)
+            E_RETURN(2);
+    }
+
+    // Get num domain names
+    {
+        char *kndnames = join_keys(key, "NumDomainNames");
+        err = (*io->get_int)(ctx, kndnames, &mesh_info->ndomain_names);
+        FREE(kndnames);
+        if(err)
+            E_RETURN(3);
+    }
+
+    // Get num components
+    {
+        char *kncomps = join_keys(key, "NumComponents");
+        err = (*io->get_int)(ctx, kncomps, &mesh_info->ncomponents);
+        FREE(kncomps);
+        if(err)
+            E_RETURN(4);
+    }
+
+     // Get num tags
+     {
+         char *kntags = join_keys(key, "NumTags");
+         err = (*io->get_int)(ctx, kntags, &mesh_info->ntags);
+         FREE(kntags);
+         if(err)
+            E_RETURN(5);
+     }
+
+    // Get domain names
+    if(mesh_info->ndomain_names)
+    {
+        char *kdom_names = join_keys(key, "DomainNames");
+        mesh_info->domain_names = calloc(sizeof(FmsIODomainNameInfo), mesh_info->ndomain_names);
+        for(i = 0; i < mesh_info->ndomain_names; i++)
+        {
+            char temp[21], *dk = NULL;
+            sprintf(temp, FMS_LU, i);
+            dk = join_keys(kdom_names, temp);
+            err |= FmsIOReadFmsDomainName(ctx, io, dk, &mesh_info->domain_names[i]);
+            FREE(dk);
+        }
+        FREE(kdom_names);
+        if(err)
+            E_RETURN(6);
+    }
+
+    // Get components
+    if(mesh_info->ncomponents)
+    {
+        char *kcomps = join_keys(key, "Components");
+        mesh_info->components = calloc(sizeof(FmsIOComponentInfo), mesh_info->ncomponents);
+        for(i = 0; i < mesh_info->ncomponents; i++) 
+        {
+            char temp[21], *kc = NULL;
+            sprintf(temp, FMS_LU, i);
+            kc = join_keys(kcomps, temp);
+            err |= FmsIOReadFmsComponent(ctx, io, kc, &mesh_info->components[i]);
+            FREE(kc);
+        }
+        FREE(kcomps);
+    }
+/*
+    char *kcomps = join_keys(key, "Components");
+    for(i = 0; i < ncomps; i++)
+    {
+        char tmp[20], *kc = NULL;
+        FmsComponent comp;
+        if(FmsMeshGetComponent(mesh, i, &comp))
+            E_RETURN(7);
+
+        if(!comp)
+            E_RETURN(8);
+
+        sprintf(tmp, "%d", (int)i);
+        kc = join_keys(kcomps, tmp);
+        FmsIOWriteComponent(ctx, io, kc, comp);
+        FREE(kc);
+    }
+    FREE(kcomps);
+
+    char *ktags = join_keys(key, "Tags");
+    for(i = 0; i < ntags; i++)
+    {
+        char tmp[20], *kt;
+        FmsTag t;
+        if(FmsMeshGetTag(mesh, i, &t))
+            E_RETURN(9);
+
+        sprintf(tmp, "%d", (int)i);
+        kt = join_keys(ktags, tmp);
+        FmsIOWriteTag(ctx, io, kt, t);
+        FREE(kt);
+    }
+    FREE(ktags);
+*/
     return 0;
 }
 
@@ -1960,6 +2396,7 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     *data_collection = NULL;
     FmsIOFieldDescriptorInfo *fd_infos = NULL;
     FmsIOFieldInfo *field_infos = NULL;
+    FmsIOMeshInfo mesh_info;
 
     // Process DataCollection's Name
     {
@@ -2038,7 +2475,7 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     // Process mesh
     {
         char *kmesh = join_keys(key, "Mesh");
-        /* TODO: err = FmsIOReadMesh(ctx, io, kmesh, dc, mesh);  */
+        err = FmsIOReadFmsMesh(ctx, io, kmesh, &mesh_info);
         FREE(kmesh);
         if(err)
             E_RETURN(11);
