@@ -937,6 +937,24 @@ int FmsGetEntityTypeFromName(const char * const name, FmsEntityType *ent_type) {
   return 0;
 }
 
+int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type) {
+  if(!name) E_RETURN(1);
+  if(!type) E_RETURN(2);
+
+  if(strcmp(FmsMetaDataTypeNames[FMS_INTEGER], name) == 0)
+    *type = FMS_INTEGER;
+  else if(strcmp(FmsMetaDataTypeNames[FMS_SCALAR], name) == 0)
+    *type = FMS_SCALAR;
+  else if(strcmp(FmsMetaDataTypeNames[FMS_STRING], name) == 0)
+    *type = FMS_STRING;
+  else if(strcmp(FmsMetaDataTypeNames[FMS_META_DATA], name) == 0)
+    *type = FMS_META_DATA;
+  else
+    E_RETURN(3);
+    
+  return 0;
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* FmsMesh functions: construction */

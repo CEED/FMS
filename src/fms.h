@@ -364,6 +364,8 @@ typedef enum {
 
 extern const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES];
 
+int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type);
+
 /// TODO: dox
 /** A meta-data structure contains:
     * a meta-data type (FmsMetaDataType)
