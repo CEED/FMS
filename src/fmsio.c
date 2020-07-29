@@ -151,6 +151,18 @@ typedef struct
 
 } FmsIOFunctions;
 
+// Struct used for building metadata
+typedef struct {
+    FmsMetaDataType mdtype;
+    union {
+        FmsIntType i_type;
+        FmsScalarType s_type;
+    };
+    const char *name;
+    FmsInt size;    
+    void *data;
+} FmsIOMetaDataInfo;
+
 // Struct used for building a FieldDescriptor on the read end
 typedef struct {
     const char *name;
@@ -215,6 +227,18 @@ typedef struct {
     void *relation_values;
 } FmsIOComponentInfo;
 
+// Struct used for building tags
+typedef struct {
+    const char *name;
+    const char *comp_name;
+    FmsIntType type;
+    void *values;
+    FmsInt size;
+    FmsInt descr_size;
+    FmsInt *tag_values; // For descriptions, TODO: Support unsigned
+    const char **descriptions;
+} FmsIOTagInfo;
+
 // Struct used for building a Mesh
 typedef struct {
     FmsInt partition_info[2];
@@ -223,9 +247,20 @@ typedef struct {
     FmsInt ntags;
     FmsIODomainNameInfo *domain_names;
     FmsIOComponentInfo *components;
-    // FmsIOTagInfo *tags;
+    FmsIOTagInfo *tags;
 
 } FmsIOMeshInfo;
+
+// Struct used for building a datacollection
+typedef struct {
+    const char *name;
+    FmsInt nfds;
+    FmsIOFieldDescriptorInfo *fds;
+    FmsInt nfields;
+    FmsIOFieldInfo *fields;
+    FmsIOMeshInfo mesh_info;
+    FmsIOMetaDataInfo *md;
+} FmsIODataCollectionInfo;
 
 static char *
 join_keys(const char *k1, const char *k2)
@@ -720,6 +755,9 @@ FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, FmsInt *value)
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
     if(!value) E_RETURN(3);
+    if(!conduit_node_has_path(ctx->root, path))
+        E_RETURN(4);
+
     if((node = conduit_node_fetch(ctx->root, path)) != NULL)
     {
         const conduit_datatype *dt = conduit_node_dtype(node);
@@ -734,10 +772,6 @@ FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, FmsInt *value)
                 E_RETURN(5);
             }
         }
-    }
-    else
-    {
-        E_RETURN(4);
     }
     return 0;
 }
@@ -1180,6 +1214,7 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, Fm
             
             ksize = join_keys(key, "Size");
             err = (*io->add_int)(ctx, ksize, size);
+            FREE(ksize);
 
             kdata = join_keys(key, "Data");
             // Recursive?
@@ -1187,7 +1222,7 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, Fm
             {
                 char temp[20], *tk = NULL;
                 sprintf(temp, "%d", (int)i);
-                tk = join_keys(key, temp);
+                tk = join_keys(kdata, temp);
                 err = FmsIOWriteFmsMetaData(ctx, io, tk, data[i]);
             }
             FREE(kdata);
@@ -1201,6 +1236,96 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, Fm
             break;
     }        
     return 0;         
+}
+
+static int
+FmsIOReadFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, 
+    FmsIOMetaDataInfo *mdinfo)
+{
+    int err = 0;
+    if(!mdinfo) E_RETURN(1);
+
+    {
+        char *kmdtype = join_keys(key, "MetaDataType");
+        const char *str = NULL;
+        err = (*io->get_string)(ctx, kmdtype, &str);
+        FREE(kmdtype);
+        if(err)
+            E_RETURN(2);
+        if(FmsGetMetaDataTypeFromName(str, &mdinfo->mdtype))
+            E_RETURN(3);
+    }
+
+    // Get name
+    {
+        char *kname = join_keys(key, "Name");
+        err = (*io->get_string)(ctx, kname, &mdinfo->name);
+        FREE(kname);
+        if(err)
+            E_RETURN(4);
+    }
+
+    switch (mdinfo->mdtype)
+    {
+        case FMS_INTEGER:
+        {
+            // Get DataArray
+            char *kdata = join_keys(key, "Data");
+            err = (*io->get_typed_int_array)(ctx, kdata, &mdinfo->i_type, &mdinfo->data, &mdinfo->size);
+            FREE(kdata);
+            if(err)
+                E_RETURN(5);
+            break;
+        }
+        case FMS_SCALAR:
+        {
+            // Get data array
+            char *kdata = join_keys(key, "Data");
+            err = (*io->get_scalar_array)(ctx, kdata, &mdinfo->s_type, &mdinfo->data, &mdinfo->size);
+            FREE(kdata);
+            if(err)
+                E_RETURN(6);
+            break;
+        }
+        case FMS_STRING:
+        {
+            // Get data array
+            char *kdata = join_keys(key, "Data");
+            err = (*io->get_string_array)(ctx, kdata, (const char***)&mdinfo->data, &mdinfo->size);
+            FREE(kdata);
+            if(err)
+                E_RETURN(7);
+            break;
+        }
+        case FMS_META_DATA:
+        {
+            // Get size
+            FmsInt i;
+            FmsIOMetaDataInfo *mds = NULL;
+            char *ksize = join_keys(key, "Size"), *kdata = NULL;
+            err = (*io->get_int)(ctx, ksize, &mdinfo->size);
+            FREE(ksize);
+            if(err)
+                E_RETURN(8);
+            mdinfo->data = calloc(sizeof(FmsIOMetaDataInfo), mdinfo->size);
+            mds = (FmsIOMetaDataInfo *)mdinfo->data;
+            kdata = join_keys(key, "Data");
+            for(i = 0; i < mdinfo->size; i++)
+            {
+                char temp[21], *ki = NULL;
+                sprintf(temp, FMS_LU, i);
+                ki = join_keys(kdata, temp);
+                err |= FmsIOReadFmsMetaData(ctx, io, ki, &mds[i]);
+            }
+            FREE(kdata);
+            if(err)
+                E_RETURN(9);
+            break;
+        }
+        default:
+            break;
+    }
+    return 0;
 }
 
 static int
@@ -1742,36 +1867,115 @@ FmsIOWriteTag(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsTag tag
     
     (*io->add_typed_int_array)(ctx, key, tag_type, ent_tags, ntags);
 
-
     const void *tagvalues = NULL;
     const char * const *descriptions = NULL;
     if(FmsTagGetDescriptions(tag, NULL, &tagvalues, &descriptions, &ntags))
         E_RETURN(5);
+    
     char *kdescriptions = join_keys(key, "Descriptions");
+
+    char *kdescriptions_size = join_keys(kdescriptions, "Size");
+    (*io->add_int)(ctx, kdescriptions_size, ntags);
+    FREE(kdescriptions_size);
+
     FmsInt i;
     for(i = 0; i < ntags; i++)
     {
-        char temp[20], *kd;
-        switch(tag_type)
-        {
-        #define templated_cast(typename, T, format) \
-            case typename: \
-            { \
-            const T *tvs = (const T*)tagvalues;   \
-            sprintf(temp, format, tvs[i]); \
-            break; \
-            }
-
-            FOR_EACH_INT_TYPE(templated_cast)
-            default: E_RETURN(6);
-        #undef templated_cast
-        }
+        char temp[21], *kd;
+        sprintf(temp, FMS_LU, i);
         kd = join_keys(kdescriptions, temp);
-        (*io->add_string)(ctx, kd, descriptions[i]);
+        
+        {
+            char *kv = join_keys(kd, "Value");
+            // TODO: Fix add_int to support signed ints
+            switch(tag_type)
+            {
+            #define CASES(typename, T, format) \
+                case typename: \
+                { \
+                    T *vs = (T*)tagvalues; \
+                    (*io->add_int)(ctx, kv, (FmsInt)vs[i]); \
+                    break; \
+                }
+                FOR_EACH_INT_TYPE(CASES)
+            #undef CASES
+                default:
+                    E_RETURN(6);
+                    break;
+            }
+            FREE(kv);
+        }
+        
+        {
+            char *kdstring = join_keys(kd, "Description");
+            (*io->add_string)(ctx, kdstring, descriptions[i]);
+            FREE(kdstring);
+        }
+    }
+    FREE(kdescriptions);
+    return 0;
+}
+
+static int
+FmsIOReadFmsTag(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOTagInfo *tinfo) {
+    int err = 0;
+    if(!tinfo)
+        E_RETURN(1);
+
+    {
+        char *ktag_name = join_keys(key, "TagName");
+        err = (*io->get_string)(ctx, ktag_name, &tinfo->name);
+        FREE(ktag_name);
+        if(err)
+            E_RETURN(2);
     }
 
+    {
+        char *kcomp_name = join_keys(key, "Component");
+        err = (*io->get_string)(ctx, kcomp_name, &tinfo->comp_name);
+        FREE(kcomp_name);
+        if(err)
+            E_RETURN(3);
+    }
 
+    err = (*io->get_typed_int_array)(ctx, key, &tinfo->type, &tinfo->values, &tinfo->size);
+    if(err)
+        E_RETURN(4);
 
+    char *kdescriptions = join_keys(key, "Descriptions");
+    if((*io->has_path)(ctx, kdescriptions))
+    {
+        FmsInt i;
+        
+        {
+            char *kdesc_size = join_keys(kdescriptions, "Size");
+            err = (*io->get_int)(ctx, kdesc_size, &tinfo->descr_size);
+            FREE(kdesc_size);
+        }
+
+        tinfo->tag_values = calloc(sizeof(FmsInt), tinfo->descr_size);
+        tinfo->descriptions = calloc(sizeof(char*), tinfo->descr_size);
+        for(i = 0; i < tinfo->descr_size; i++)
+        {
+            char temp[21], *ki = NULL, *kv = NULL, *kd = NULL;
+            sprintf(temp, FMS_LU, i);
+            ki = join_keys(kdescriptions, temp);
+
+            // TODO: Support unsigned
+            kv = join_keys(ki, "Value");
+            err |= (*io->get_int)(ctx, kv, &tinfo->tag_values[i]);
+            FREE(kv);
+
+            kd = join_keys(ki, "Description");
+            err |= (*io->get_string)(ctx, kd, &tinfo->descriptions[i]);
+            FREE(kd);
+            FREE(ki);
+        }
+    }
+    FREE(kdescriptions);
+    if(err)
+        E_RETURN(5);
+    
     return 0;
 }
 
@@ -1942,41 +2146,27 @@ FmsIOReadFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOMe
             FREE(kc);
         }
         FREE(kcomps);
-    }
-/*
-    char *kcomps = join_keys(key, "Components");
-    for(i = 0; i < ncomps; i++)
-    {
-        char tmp[20], *kc = NULL;
-        FmsComponent comp;
-        if(FmsMeshGetComponent(mesh, i, &comp))
+        if(err)
             E_RETURN(7);
-
-        if(!comp)
-            E_RETURN(8);
-
-        sprintf(tmp, "%d", (int)i);
-        kc = join_keys(kcomps, tmp);
-        FmsIOWriteComponent(ctx, io, kc, comp);
-        FREE(kc);
     }
-    FREE(kcomps);
 
-    char *ktags = join_keys(key, "Tags");
-    for(i = 0; i < ntags; i++)
+    // Get tags
+    if(mesh_info->ntags)
     {
-        char tmp[20], *kt;
-        FmsTag t;
-        if(FmsMeshGetTag(mesh, i, &t))
-            E_RETURN(9);
-
-        sprintf(tmp, "%d", (int)i);
-        kt = join_keys(ktags, tmp);
-        FmsIOWriteTag(ctx, io, kt, t);
-        FREE(kt);
+        char *ktags = join_keys(key, "Tags");
+        mesh_info->tags = calloc(sizeof(FmsIOTagInfo), mesh_info->ntags);
+        for(i = 0; i < mesh_info->ntags; i++)
+        {
+            char temp[21], *kt = NULL;
+            sprintf(temp, FMS_LU, i);
+            kt = join_keys(ktags, temp);
+            err |= FmsIOReadFmsTag(ctx, io, kt, &mesh_info->tags[i]);
+            FREE(kt);
+        }
+        FREE(ktags);
+        if(err)
+            E_RETURN(8);   
     }
-    FREE(ktags);
-*/
     return 0;
 }
 
@@ -2184,8 +2374,7 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
 }
 
 static int
-FmsIOReadFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOFieldInfo *field_info,
-    FmsIOFieldDescriptorInfo *fd_infos, FmsInt nfds) {
+FmsIOReadFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOFieldInfo *field_info) {
     int err = 0;
 
     // Get Field name
@@ -2381,104 +2570,94 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
 
 static int
 FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
-    FmsDataCollection *data_collection)
+    FmsIODataCollectionInfo *data_collection)
 {
     if(!ctx) E_RETURN(1);
     if(!io) E_RETURN(2);
     if(!key) E_RETURN(3);
     if(!data_collection) E_RETURN(4);
     int err = 0;
-    FmsDataCollection dc = NULL;
-    FmsMesh mesh = NULL;
-    FmsMetaData md = NULL;
-    FmsInt i = 0, nfds = 0, nfields = 0;
-    const char *name = NULL;
-    *data_collection = NULL;
-    FmsIOFieldDescriptorInfo *fd_infos = NULL;
-    FmsIOFieldInfo *field_infos = NULL;
-    FmsIOMeshInfo mesh_info;
+    FmsInt i = 0;
+
+    data_collection = calloc(sizeof(FmsIODataCollectionInfo), 1);
+    if(!data_collection)
+        E_RETURN(5);
 
     // Process DataCollection's Name
     {
         char *kname = join_keys(key, "Name");
-        err = (*io->get_string)(ctx, kname, &name);
+        err = (*io->get_string)(ctx, kname, &data_collection->name);
         FREE(kname);
         if(err)
-            E_RETURN(5);
+            E_RETURN(6);
     }
 
-    if(!name)
-        E_RETURN(6);
-
-    // Start building our DataCollection, this requires that mesh not be NULL
-    if(FmsMeshConstruct(&mesh))
-        E_RETURN(7);
-    if(FmsDataCollectionCreate(mesh, name, &dc))
+    if(!data_collection->name)
         E_RETURN(7);
 
     // Process FieldDescriptors
     {
         char *knfds = join_keys(key, "NumberOfFieldDescriptors");
-        err = (*io->get_int)(ctx, knfds, &nfds);
+        err = (*io->get_int)(ctx, knfds, &data_collection->nfds);
         FREE(knfds);
         if(err)
             E_RETURN(8);
 
         // Make sure there were actually any FieldDescriptors
-        if(nfds)
+        if(data_collection->nfds)
         {
             char *kfds = join_keys(key, "FieldDescriptors");
-            fd_infos = calloc(sizeof(FmsIOFieldDescriptorInfo), nfds);
+            data_collection->fds = calloc(sizeof(FmsIOFieldDescriptorInfo), data_collection->nfds);
             err = 0;
-            for(i = 0; i < nfds; i++)
+            for(i = 0; i < data_collection->nfds; i++)
             {
                 char tmp[20], *kfdi = NULL;
                 sprintf(tmp, "%d", (int)i);
                 kfdi = join_keys(kfds, tmp);
-                err |= FmsIOReadFmsFieldDescriptor(ctx, io, kfdi, &fd_infos[i]);
+                err |= FmsIOReadFmsFieldDescriptor(ctx, io, kfdi, &data_collection->fds[i]);
                 FREE(kfdi);
             }
             FREE(kfds);
             if(err)
-                E_RETURN(8);
+                E_RETURN(11);
         }
     }
 
     // Process Fields
     {
         char *knfs = join_keys(key, "NumberOfFields");
-        err = (*io->get_int)(ctx, knfs, &nfields);
+        err = (*io->get_int)(ctx, knfs, &data_collection->nfields);
         FREE(knfs);
         if(err)
-            E_RETURN(9);
+            E_RETURN(12);
 
         // Make sure there were actually any Fields
-        if(nfields)
+        if(data_collection->nfields)
         {
             char *kfs = join_keys(key, "Fields");
-            field_infos = calloc(sizeof(FmsIOFieldInfo), nfields);
+            data_collection->fields = calloc(sizeof(FmsIOFieldInfo), data_collection->nfields);
             err = 0;
-            for(i = 0; i < nfields; i++)
+            for(i = 0; i < data_collection->nfields; i++)
             {
                 char tmp[20], *kfi = NULL;
                 sprintf(tmp, "%d", (int)i);
                 kfi = join_keys(kfs, tmp);
-                err |= FmsIOReadFmsField(ctx, io, kfi, &field_infos[i], fd_infos, nfds);
+                err |= FmsIOReadFmsField(ctx, io, kfi, &data_collection->fields[i]);
                 FREE(kfi);
             }
             FREE(kfs);
             if(err)
-                E_RETURN(10);
+                E_RETURN(13);
         }
     }
 
     // Process mesh
     {
         char *kmesh = join_keys(key, "Mesh");
-        err = FmsIOReadFmsMesh(ctx, io, kmesh, &mesh_info);
+        err = FmsIOReadFmsMesh(ctx, io, kmesh, &data_collection->mesh_info);
         FREE(kmesh);
         if(err)
-            E_RETURN(11);
+            E_RETURN(14);
     }
 
 
@@ -2487,13 +2666,13 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
         char *kmd = join_keys(key, "MetaData");
         if((*io->has_path)(ctx, kmd))
         {
-            err = FmsDataCollectionAttachMetaData(dc, &md);
-            // if(md)
-                /* TODO: err = FmsIOReadFmsMetaData(ctx, io, kmd, md); */
+            data_collection->md = calloc(sizeof(FmsIOMetaDataInfo), 1);
+            if(data_collection->md)
+                err = FmsIOReadFmsMetaData(ctx, io, kmd, data_collection->md);
         }
         FREE(kmd);
         if(err)
-            E_RETURN(12);
+            E_RETURN(15);
     }
 
     return 0;
@@ -2597,6 +2776,7 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
     {
         int err = 0;
         FmsInt version = 0;
+        FmsIODataCollectionInfo dc_info;
         err = (*io.get_int)(&ctx, "FMS", &version);
         if(err != 0 || version != (int)FMS_INTERFACE_VERSION)
         {
@@ -2605,9 +2785,10 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
             E_RETURN(5);
         }
 
-        if(FmsIOReadFmsDataCollection(&ctx, &io, "DataCollection", dc) != 0)
+        if(FmsIOReadFmsDataCollection(&ctx, &io, "DataCollection", &dc_info) != 0)
         {
             /* "close" the file. */
+            /* TODO: Destroy the FmsIODataCollectionInfo */
             (*io.close)(&ctx);
             E_RETURN(6);
         }
