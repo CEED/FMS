@@ -125,6 +125,9 @@ int main(int argc, const char *argv[]) {
     FmsIOWrite("simple_mesh2.fms", argv[1], new_dc);
   else
     FmsIOWrite("simple_mesh2.fms.ascii", NULL, new_dc);
+
+  if(new_dc)
+    FmsDataCollectionDestroy(&new_dc);
 #endif
 
 

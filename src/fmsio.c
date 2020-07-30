@@ -242,7 +242,7 @@ typedef struct {
 
 // Struct used for building a Mesh
 typedef struct {
-    FmsInt partition_info[2];
+    FmsInt *partition_info; // Should be a size 2 FmsInt
     FmsInt ndomain_names;
     FmsInt ncomponents;
     FmsInt ntags;
@@ -1477,7 +1477,7 @@ FmsIOReadFmsDomain(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIO
             char temp[21], *ke = NULL;
             sprintf(temp, FMS_LU, i);
             ke = join_keys(kentities, temp);
-
+            // TODO: Fix err logic so we don't leak on error.
             // Get EntityType
             {
                 char *kent_type = join_keys(ke, "EntityType");
@@ -1506,6 +1506,7 @@ FmsIOReadFmsDomain(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIO
             if(err)
                 E_RETURN(7);
         }
+        FREE(kentities);
     }
     return 0;
 }
@@ -1582,6 +1583,7 @@ FmsIOReadFmsDomainName(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, F
             err |= FmsIOReadFmsDomain(ctx, io, kd, &dinfo->domains[i]);
             FREE(kd);
         }
+        FREE(kdoms);
         if(err)
             E_RETURN(4);
     }
@@ -1963,6 +1965,7 @@ FmsIOWriteTag(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsTag tag
             (*io->add_string)(ctx, kdstring, descriptions[i]);
             FREE(kdstring);
         }
+        FREE(kd);
     }
     FREE(kdescriptions);
     return 0;
@@ -2518,6 +2521,7 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
     {
         char *n_key = join_keys(key, "Name");
         err = (*io->add_string)(ctx, n_key, name);
+        FREE(n_key);
         if(err)
             E_RETURN(1);
     }
@@ -2969,10 +2973,152 @@ FmsIOBuildFmsDataCollection(FmsIODataCollectionInfo *dc_info, FmsDataCollection 
     return 0;
 }
 
+static inline int
+FmsIODestroyFmsIOMetaDataInfo(FmsIOMetaDataInfo *minfo) {
+    if(!minfo) E_RETURN(1);
+    switch(minfo->mdtype) {
+        case FMS_INTEGER:
+            FREE(minfo->data);
+            break;
+        case FMS_SCALAR:
+            FREE(minfo->data);
+            break;
+        case FMS_STRING:
+            FREE(minfo->data);
+            break;
+        case FMS_META_DATA: {
+            FmsIOMetaDataInfo **mds = (FmsIOMetaDataInfo**)minfo->data;
+            for(FmsInt i = 0; i < minfo->size; i++) {
+                FmsIODestroyFmsIOMetaDataInfo(mds[i]);
+                FREE(mds[i]);
+            }
+            FREE(minfo->data);
+            break;
+        }
+        default:
+            // Corrupt mdtype
+            E_RETURN(2);
+            break;
+    }
+    FREE(minfo);
+    return 0;
+}
+
+// Just used to make sure everything is zero-initialized
 static int 
-FmsIODestroyFmsIODataCollectionInfo(FmsIODataCollectionInfo *dc_info)
-{
+FmsIOConstructFmsIODataCollectionInfo(FmsIODataCollectionInfo **dc_info) {
     if(!dc_info) E_RETURN(1);
+    *dc_info = calloc(sizeof(FmsIODataCollectionInfo), 1);
+    if(!*dc_info) E_RETURN(2);
+    return 0;
+}
+
+static int 
+FmsIODestroyFmsIODataCollectionInfo(FmsIODataCollectionInfo *dc_info) {
+    if(!dc_info) E_RETURN(1);
+    
+    int err = 0;
+
+    // Destroy DomainNameInfos & DomainInfos
+    const FmsInt ndomnames = dc_info->mesh_info->ndomain_names;
+    if(ndomnames)
+    {
+        FmsInt i;
+        for(i = 0; i < ndomnames; i++)
+        {
+            FmsInt j;
+            FmsInt ndoms = dc_info->mesh_info->domain_names[i].ndomains;
+            for(j = 0; j < ndoms; j++)
+            {
+                FmsInt k = 0;
+                FmsIODomainInfo *dinfo = &dc_info->mesh_info->domain_names[i].domains[j];
+                const FmsInt dim = dinfo->dim;
+                for(k = 0; k < dim; k++)
+                {
+                    FmsIOEntityInfo *einfo = &dinfo->entities[k];
+                    FREE(einfo->values);
+                    // FREE(einfo); // It's a 1-D array
+                }
+                FREE(dinfo->entities);
+            }
+            FREE(dc_info->mesh_info->domain_names[i].domains);
+        }
+        FREE(dc_info->mesh_info->domain_names);
+    }
+
+    // Destroy ComponentInfos
+    const FmsInt ncomponents = dc_info->mesh_info->ncomponents;
+    if(ncomponents) {
+        FmsInt i;
+        for(i = 0; i < ncomponents; i++) {
+            FmsIOComponentInfo *comp_info = &dc_info->mesh_info->components[i];
+            const FmsInt nparts = comp_info->nparts;
+            FmsInt j;
+            for(j = 0; j < nparts; j++) {
+                FmsIOComponentPartInfo *pinfo = &comp_info->parts[j];
+                FmsInt k;
+                for(k = 0; k < FMS_NUM_ENTITY_TYPES; k++) {
+                    if(pinfo->entities[k].nents)
+                        FREE(pinfo->entities[k].values);
+                }
+            }
+            FREE(comp_info->parts);
+            // Add the component relations
+            const FmsInt nrelations = comp_info->relation_size;
+            if(nrelations) {
+                FREE(comp_info->relation_values);
+            }
+        }
+        FREE(dc_info->mesh_info->components);
+    }
+
+    // Destroy TagInfos
+    const FmsInt ntags = dc_info->mesh_info->ntags;
+    if(ntags) {
+        FmsInt i;
+        for(i = 0; i < ntags; i++) {
+            FmsIOTagInfo *tinfo = &dc_info->mesh_info->tags[i];
+            FREE(tinfo->values);
+            FREE(tinfo->tag_values);
+            FREE(tinfo->descriptions);
+        }
+        FREE(dc_info->mesh_info->tags);
+    }
+
+    FREE(dc_info->mesh_info->partition_info);
+    FREE(dc_info->mesh_info);
+
+    // Add FieldDescriptors
+    const FmsInt nfds = dc_info->nfds;
+    if(nfds) {
+        FmsInt i;
+        for(i = 0; i < nfds; i++) {
+            FmsIOFieldDescriptorInfo *fd_info = &dc_info->fds[i];
+            FREE(fd_info->fixed_order);
+        }
+        FREE(dc_info->fds);
+    }
+
+    const FmsInt nfields = dc_info->nfields;
+    if(nfields) {
+        FmsInt i;
+        for(i = 0; i < nfields; i++) {
+            FmsIOFieldInfo *finfo = &dc_info->fields[i];
+            FREE(finfo->data);
+            if(finfo->md) {
+                FmsIODestroyFmsIOMetaDataInfo(finfo->md);
+            }
+        }
+        FREE(dc_info->fields);
+    }
+
+    // If we have MetaData attach it
+    if(dc_info->md) {
+        FmsIODestroyFmsIOMetaDataInfo(dc_info->md);
+    }
+
+    FREE(dc_info);
+
     return 0;
 }
 
@@ -3074,7 +3220,8 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
     {
         int err = 0;
         FmsInt version = 0;
-        FmsIODataCollectionInfo dc_info;
+        FmsIODataCollectionInfo *dc_info;
+        FmsIOConstructFmsIODataCollectionInfo(&dc_info);
         err = (*io.get_int)(&ctx, "FMS", &version);
         if(err != 0 || version != (int)FMS_INTERFACE_VERSION)
         {
@@ -3083,16 +3230,16 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
             E_RETURN(5);
         }
 
-        if(FmsIOReadFmsDataCollection(&ctx, &io, "DataCollection", &dc_info) != 0)
+        if(FmsIOReadFmsDataCollection(&ctx, &io, "DataCollection", dc_info) != 0)
         {
             /* "close" the file. */
-            /* TODO: Destroy the FmsIODataCollectionInfo */
+            FmsIODestroyFmsIODataCollectionInfo(dc_info);
             (*io.close)(&ctx);
             E_RETURN(6);
         }
 
-        FmsIOBuildFmsDataCollection(&dc_info, dc);
-        FmsIODestroyFmsIODataCollectionInfo(&dc_info);
+        FmsIOBuildFmsDataCollection(dc_info, dc);
+        FmsIODestroyFmsIODataCollectionInfo(dc_info);
 
         if((*io.close)(&ctx) != 0)
             E_RETURN(7);
