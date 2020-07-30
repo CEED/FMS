@@ -119,6 +119,12 @@ int main(int argc, const char *argv[]) {
     FmsIORead("simple_mesh.fms", argv[1], &new_dc);
   else
     FmsIORead("simple_mesh.fms.ascii", NULL, &new_dc);
+
+  // Now write the new dc back out
+  if(argc > 1)
+    FmsIOWrite("simple_mesh2.fms", argv[1], new_dc);
+  else
+    FmsIOWrite("simple_mesh2.fms.ascii", NULL, new_dc);
 #endif
 
 

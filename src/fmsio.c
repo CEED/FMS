@@ -168,7 +168,7 @@ typedef struct {
     const char *name;
     const char *component_name;
     FmsFieldDescriptorType type;
-    FmsInt fixed_order[3];
+    FmsInt *fixed_order; // Type should be FmsInt & size should be 3
     FmsInt num_dofs;
 } FmsIOFieldDescriptorInfo;
 
@@ -181,6 +181,7 @@ typedef struct {
     FmsInt data_size;
     FmsScalarType data_type;
     void *data; // Currently - should free
+    FmsIOMetaDataInfo *md;
 } FmsIOFieldInfo;
 
 // Struct used to define entities in a domain
@@ -224,7 +225,7 @@ typedef struct {
     FmsIOComponentPartInfo *parts;
     FmsInt relation_size;
     FmsIntType relation_type;
-    void *relation_values;
+    FmsInt *relation_values;
 } FmsIOComponentInfo;
 
 // Struct used for building tags
@@ -258,7 +259,7 @@ typedef struct {
     FmsIOFieldDescriptorInfo *fds;
     FmsInt nfields;
     FmsIOFieldInfo *fields;
-    FmsIOMeshInfo mesh_info;
+    FmsIOMeshInfo *mesh_info;
     FmsIOMetaDataInfo *md;
 } FmsIODataCollectionInfo;
 
@@ -638,7 +639,7 @@ FmsIOAddTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType typ
     FREE(ksize);
 
     char *ktype = join_keys(path, "Type");
-    conduit_node_set_path_char8_str(ctx->root, ktype, FmsIntTypeNames[FMS_UINT64]);
+    conduit_node_set_path_char8_str(ctx->root, ktype, FmsIntTypeNames[type]);
     FREE(ktype);
     
     if(!values || n == 0)
@@ -780,7 +781,8 @@ FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, FmsInt *value)
 static int
 FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n)
 {
-    conduit_node *node = NULL;
+    const conduit_datatype *dt = NULL;
+    conduit_node *node = NULL, *vnode = NULL;
     char *type_str = NULL;
     void *conduit_data_ptr = NULL;
     if(!ctx) E_RETURN(1);
@@ -818,27 +820,71 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
     if(!conduit_node_has_child(node, "Values"))
         E_RETURN(12);
 
-    conduit_data_ptr = conduit_node_element_ptr(conduit_node_fetch(node, "Values"), 0);
+    if((vnode = conduit_node_fetch(node, "Values")) == NULL)
+        E_RETURN(13);
 
-    /* TODO fix this - can't do a switch over our types because conduit is probably using a signed pointer.
-        Maybe use conduit_datatype_is_signed()
-        or do if/else if over each conduit_datatype for the correct one  */
-    switch(*type)
-    {
-    #define COPY_DATA(typename, T, format) \
-        case typename: \
-        { \
-            void *dest = malloc(sizeof(T) * *n); \
-            memcpy(dest, conduit_data_ptr, sizeof(T) * *n); \
-            *values = dest; \
-            break; \
-        }
-        FOR_EACH_INT_TYPE(COPY_DATA)
-    #undef COPY_DATA
-        default:
-            E_RETURN(13);
+    dt = conduit_node_dtype(vnode);
+    conduit_data_ptr = conduit_node_element_ptr(vnode, 0);
+
+#define CASES(typename, T, format) \
+    case typename: { \
+        CT *src  = (CT*)conduit_data_ptr; \
+        T *dest = (T*)malloc(sizeof(T) * *n); \
+        for(FmsInt i = 0; i < *n; i++) { \
+            dest[i] = (T)src[i]; \
+        } \
+        *values = (void*)dest; \
+        break; \
     }
 
+#define COPY_AND_CAST \
+    do { \
+        switch(*type) { \
+            FOR_EACH_INT_TYPE(CASES) \
+            default: \
+                E_RETURN(14); \
+                break; \
+        } \
+    } while(0)
+
+
+    if(conduit_datatype_is_int8(dt)) {
+        typedef int8_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_int16(dt)) {
+        typedef int16_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_int32(dt)) {
+        typedef int32_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_int64(dt)) {
+        typedef int64_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_uint8(dt)) {
+        typedef uint8_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_uint16(dt)) {
+        typedef uint16_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_uint32(dt)) {
+        typedef uint32_t CT;
+        COPY_AND_CAST;
+    }
+    else if(conduit_datatype_is_uint64(dt)) {
+        typedef uint64_t CT;
+        COPY_AND_CAST;
+    }
+    else {
+        E_RETURN(15);
+    }
+#undef COPY_AND_CAST
+#undef CASES
     return 0;
 }
 
@@ -1650,8 +1696,7 @@ FmsIOWriteComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsC
                 (*io->add_int)(ctx, knents, nents);
                 FREE(knents);
 
-                const FmsInt N = FmsEntityNumSides[et] * nents;
-                (*io->add_typed_int_array)(ctx, k, ent_id_type, ents, N);
+                (*io->add_typed_int_array)(ctx, k, ent_id_type, ents, nents);
                 FREE(k);
             }
         }
@@ -1822,8 +1867,15 @@ FmsIOReadFmsComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, Fm
     // Finally get the relations
     {
         char *krelcomps = join_keys(key, "Relations");
-        err = (*io->get_typed_int_array)(ctx, krelcomps, &comp_info->relation_type,
-            &comp_info->relation_values, &comp_info->relation_size);
+        if((*io->has_path)(ctx, krelcomps))
+        {
+            err = (*io->get_typed_int_array)(ctx, krelcomps, &comp_info->relation_type,
+                (void*)&comp_info->relation_values, &comp_info->relation_size);
+            // Relations should be of type FmsInt
+            if(comp_info->relation_type != FMS_UINT64)
+                err = 1;
+        }
+
         FREE(krelcomps);
         if(err)
             E_RETURN(13);
@@ -2071,7 +2123,7 @@ FmsIOWriteFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsMes
 }
 
 static int
-FmsIOReadFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOMeshInfo *mesh_info) {\
+FmsIOReadFmsMesh(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOMeshInfo *mesh_info) {
     int err = 0;
     FmsInt i = 0;
     if(!mesh_info) E_RETURN(1);
@@ -2282,7 +2334,7 @@ FmsIOReadFmsFieldDescriptor(FmsIOContext *ctx, FmsIOFunctions *io, const char *k
         char *kfo = join_keys(key, "FixedOrder");
         FmsIntType type;
         FmsInt n = 0;
-        err = (*io->get_typed_int_array)(ctx, kfo, &type, (void*)fd_info->fixed_order, &n);
+        err = (*io->get_typed_int_array)(ctx, kfo, &type, (void*)&fd_info->fixed_order, &n);
         FREE(kfo);
         // We know is is an array of FmsInts that is length 3
         if(err || type != FMS_UINT64 || n != 3u)
@@ -2579,11 +2631,8 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     int err = 0;
     FmsInt i = 0;
 
-    data_collection = calloc(sizeof(FmsIODataCollectionInfo), 1);
-    if(!data_collection)
-        E_RETURN(5);
-
     // Process DataCollection's Name
+    data_collection->name = NULL;
     {
         char *kname = join_keys(key, "Name");
         err = (*io->get_string)(ctx, kname, &data_collection->name);
@@ -2596,6 +2645,8 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
         E_RETURN(7);
 
     // Process FieldDescriptors
+    data_collection->nfds = 0;
+    data_collection->fds = NULL;
     {
         char *knfds = join_keys(key, "NumberOfFieldDescriptors");
         err = (*io->get_int)(ctx, knfds, &data_collection->nfds);
@@ -2624,6 +2675,8 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     }
 
     // Process Fields
+    data_collection->nfields = 0;
+    data_collection->fields = NULL;
     {
         char *knfs = join_keys(key, "NumberOfFields");
         err = (*io->get_int)(ctx, knfs, &data_collection->nfields);
@@ -2652,9 +2705,11 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     }
 
     // Process mesh
+    data_collection->mesh_info = NULL;
     {
         char *kmesh = join_keys(key, "Mesh");
-        err = FmsIOReadFmsMesh(ctx, io, kmesh, &data_collection->mesh_info);
+        data_collection->mesh_info = calloc(sizeof(FmsIOMeshInfo), 1);
+        err = FmsIOReadFmsMesh(ctx, io, kmesh, data_collection->mesh_info);
         FREE(kmesh);
         if(err)
             E_RETURN(14);
@@ -2662,6 +2717,7 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
 
 
     // Process MetaData (if we have it)
+    data_collection->md = NULL;
     {
         char *kmd = join_keys(key, "MetaData");
         if((*io->has_path)(ctx, kmd))
@@ -2675,6 +2731,248 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
             E_RETURN(15);
     }
 
+    return 0;
+}
+
+static inline int
+FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
+    if(!md) E_RETURN(1);
+    if(!minfo) E_RETURN(2);
+    switch(minfo->mdtype) {
+        case FMS_INTEGER:
+            FmsMetaDataSetIntegers(md, minfo->name, minfo->i_type, minfo->size, minfo->data);
+            break;
+        case FMS_SCALAR:
+            FmsMetaDataSetScalars(md, minfo->name, minfo->s_type, minfo->size, minfo->data);
+            break;
+        case FMS_STRING:
+            FmsMetaDataSetString(md, minfo->name, (const char*)minfo->data);
+            break;
+        case FMS_META_DATA:
+            FmsMetaDataSetMetaData(md, minfo->name, minfo->size, (FmsMetaData**)minfo->data);
+        default:
+            // Corrupt mdtype
+            E_RETURN(3);
+            break;
+    }
+    return 0;
+}
+
+static int
+FmsIOBuildFmsDataCollection(FmsIODataCollectionInfo *dc_info, FmsDataCollection *dc)
+{
+    if(!dc_info) E_RETURN(1);
+    if(!dc) E_RETURN(2);
+    if(!dc_info->mesh_info)
+        E_RETURN(3);
+
+    int err = 0;
+    FmsMesh mesh = NULL;
+    FmsMeshConstruct(&mesh);
+
+    // Populate mesh domains
+    const FmsInt ndomnames = dc_info->mesh_info->ndomain_names;
+    if(ndomnames)
+    {
+        FmsInt i;
+        for(i = 0; i < ndomnames; i++)
+        {
+            FmsInt j;
+            FmsInt ndoms = dc_info->mesh_info->domain_names[i].ndomains;
+            FmsDomain *doms = NULL;
+            FmsMeshAddDomains(mesh, dc_info->mesh_info->domain_names[i].name, ndoms, &doms);
+            for(j = 0; j < ndoms; j++)
+            {
+                FmsInt k = 0;
+                FmsIODomainInfo *dinfo = &dc_info->mesh_info->domain_names[i].domains[j];
+                const FmsInt dim = dinfo->dim;
+                FmsDomainSetNumVertices(doms[j], dinfo->nverts);
+                for(k = 0; k < dim; k++)
+                {
+                    FmsIOEntityInfo *einfo = &dinfo->entities[k];
+                    FmsDomainSetNumEntities(doms[j], einfo->ent_type, einfo->type, einfo->nents);
+                    FmsDomainAddEntities(doms[j], einfo->ent_type, NULL, einfo->type, einfo->values, einfo->nents);
+                }
+            }
+        }
+    }
+
+    // Populate mesh components
+    const FmsInt ncomponents = dc_info->mesh_info->ncomponents;
+    if(ncomponents) {
+        FmsInt i;
+        for(i = 0; i < ncomponents; i++) {
+            FmsComponent comp;
+            FmsIOComponentInfo *comp_info = &dc_info->mesh_info->components[i];
+            FmsMeshAddComponent(mesh, comp_info->name, &comp);
+            // TODO: Add Coordinates if they exist? How can I do that if I can't make fields yet. There is no AddCoordinates function
+            const FmsInt nparts = comp_info->nparts;
+            FmsInt j;
+            for(j = 0; j < nparts; j++) {
+                FmsIOComponentPartInfo *pinfo = &comp_info->parts[j];
+                // Lookup domain
+                FmsDomain *doms;
+                if(FmsMeshGetDomainsByName(mesh, pinfo->domain_name, NULL, &doms))
+                    E_RETURN(4); // Failed to lookup the mesh off id & name
+                FmsDomain dom = doms[pinfo->domain_id];
+                if(pinfo->full_domain) {
+                    FmsComponentAddDomain(comp, dom);
+                    continue;
+                }
+                else {
+                    FmsInt part_id;
+                    FmsComponentAddPart(comp, dom, &part_id);
+                    FmsIOEntityInfo *einfo = &pinfo->entities[pinfo->part_ent_type];
+                    FmsComponentAddPartEntities(comp, part_id, einfo->ent_type,
+                        einfo->type, einfo->type, FMS_INT32, NULL, einfo->values, NULL, einfo->nents);
+                    FmsInt k;
+                    for(k = 0; k < einfo->ent_type; k++) {
+                        FmsIOEntityInfo *seinfo = &pinfo->entities[k];
+                        if(!seinfo->nents) continue;
+                        FmsComponentAddPartSubEntities(comp, part_id, seinfo->ent_type, seinfo->type,
+                            seinfo->type, seinfo->values, seinfo->nents);
+                    }
+                }
+            }
+            // Add the component relations
+            const FmsInt nrelations = comp_info->relation_size;
+            if(nrelations) {
+                FmsInt j;
+                for(j = 0; j < nrelations; j++) {
+                    FmsComponentAddRelation(comp, comp_info->relation_values[j]);
+                }
+            }
+        }
+    }
+
+    // Populate mesh tags
+    const FmsInt ntags = dc_info->mesh_info->ntags;
+    if(ntags) {
+        FmsInt i;
+        for(i = 0; i < ntags; i++) {
+            FmsIOTagInfo *tinfo = &dc_info->mesh_info->tags[i];
+            FmsTag tag = NULL;
+            FmsMeshAddTag(mesh, tinfo->name, &tag);
+            // Lookup component
+            FmsInt j;
+            for(j = 0; j < ncomponents; j++) {
+                FmsComponent comp;
+                const char *comp_name = NULL;
+                FmsMeshGetComponent(mesh, j, &comp);
+                FmsComponentGetName(comp, &comp_name);
+                if(strcmp(comp_name, tinfo->comp_name) == 0) {
+                    FmsTagSetComponent(tag, comp);
+                    break;
+                }
+            }
+            FmsTagSet(tag, tinfo->type, tinfo->type, tinfo->values, tinfo->size);
+            if(tinfo->descr_size) {
+                FmsTagAddDescriptions(tag, tinfo->type, tinfo->tag_values, tinfo->descriptions, tinfo->descr_size);
+            }
+        }
+    }
+
+    // Finalize our mesh
+    FmsMeshFinalize(mesh);
+    FmsMeshValidate(mesh);
+
+    // Start building the data collection and adding the fields
+    FmsDataCollectionCreate(mesh, dc_info->name, dc);
+
+    // Add FieldDescriptors
+    const FmsInt nfds = dc_info->nfds;
+    if(nfds) {
+        FmsInt i;
+        for(i = 0; i < nfds; i++) {
+            FmsIOFieldDescriptorInfo *fd_info = &dc_info->fds[i];
+            FmsFieldDescriptor fd;
+            FmsDataCollectionAddFieldDescriptor(*dc, fd_info->name, &fd);
+            // Lookup Component by name
+            FmsInt j;
+            for(j = 0; j < ncomponents; j++) {
+                const char *comp_name = NULL;
+                FmsComponent comp = NULL;
+                FmsMeshGetComponent(mesh, j, &comp);
+                FmsComponentGetName(comp, &comp_name);
+                if(strcmp(comp_name, fd_info->component_name) == 0)
+                {
+                    FmsFieldDescriptorSetComponent(fd, comp);
+                    break;
+                }
+            }
+            FmsFieldDescriptorSetFixedOrder(fd, fd_info->fixed_order[0], fd_info->fixed_order[1], fd_info->fixed_order[2]);
+            // TODO: Check ndofs & type against what was serialized?
+        }
+    }
+
+    const FmsInt nfields = dc_info->nfields;
+    if(nfields) {
+        FmsInt i;
+        for(i = 0; i < nfields; i++) {
+            FmsIOFieldInfo *finfo = &dc_info->fields[i];
+            FmsField field = NULL;
+            FmsDataCollectionAddField(*dc, finfo->name, &field);
+            // Lookup FieldDescriptor by name
+            FmsInt j;
+            FmsFieldDescriptor *fds;
+            FmsDataCollectionGetFieldDescriptors(*dc, &fds, NULL);
+            for(j = 0; j < nfds; j++) {
+                const char *fd_name = NULL;
+                FmsFieldDescriptor fd = fds[j];
+                FmsFieldDescriptorGetName(fd, &fd_name);
+                if(strcmp(fd_name, finfo->fd_name) == 0) {
+                    FmsFieldSet(field, fd, finfo->num_vec_comps, finfo->layout, finfo->data_type, finfo->data);
+                }
+            }
+            if(finfo->md) {
+                FmsMetaData md = NULL;
+                FmsFieldAttachMetaData(field, &md); 
+                FmsIOBuildFmsMetaData(md, finfo->md);
+            } 
+        }
+    }
+
+    // Now that we have everything setup we have to go back and add coordinates to components that need them
+    if(ncomponents) {
+        FmsInt i;
+        for(i = 0; i < ncomponents; i++) {
+            FmsIOComponentInfo *cinfo = &dc_info->mesh_info->components[i];
+            // If this component doesn't have coordinates just skip it
+            if(!cinfo->coordinates_name)
+                continue;
+            FmsComponent comp;
+            FmsMeshGetComponent(mesh, i, &comp);
+            // Lookup Coordinate field by name
+            FmsInt j;
+            FmsField *fields = NULL;
+            FmsDataCollectionGetFields(*dc, &fields, NULL);
+            for(j = 0; j < nfields; j++) {
+                FmsField field = fields[j];
+                const char *field_name = NULL;
+                FmsFieldGetName(field, &field_name);
+                if(strcmp(field_name, cinfo->coordinates_name) == 0)
+                {
+                    FmsComponentSetCoordinates(comp, field);
+                    break;
+                }
+            }
+        }
+    }
+
+    // If we have MetaData attach it
+    if(dc_info->md) {
+        FmsMetaData md = NULL;
+        FmsDataCollectionAttachMetaData(*dc, &md);
+        err = FmsIOBuildFmsMetaData(md, dc_info->md);
+    }
+
+    return 0;
+}
+
+static int 
+FmsIODestroyFmsIODataCollectionInfo(FmsIODataCollectionInfo *dc_info)
+{
+    if(!dc_info) E_RETURN(1);
     return 0;
 }
 
@@ -2792,6 +3090,9 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
             (*io.close)(&ctx);
             E_RETURN(6);
         }
+
+        FmsIOBuildFmsDataCollection(&dc_info, dc);
+        FmsIODestroyFmsIODataCollectionInfo(&dc_info);
 
         if((*io.close)(&ctx) != 0)
             E_RETURN(7);
