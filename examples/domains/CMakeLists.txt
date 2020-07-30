@@ -14,6 +14,5 @@
 # software, applications, hardware, advanced system engineering and early
 # testbed platforms, in support of the nation's exascale computing imperative.
 
-add_subdirectory(demo_pumi_mfem)
-add_subdirectory(domains)
-add_subdirectory(simple_mesh)
+add_executable(domains domains.c)
+target_link_libraries(domains PRIVATE fms)
