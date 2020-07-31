@@ -100,6 +100,13 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
   } while (0)
 #endif
 
+// Return m=2^k, k-integer, such that: m >= n > m/2
+static inline FmsInt NextPow2(FmsInt n) {
+  FmsInt m = 1;
+  while (m < n) { m *= 2; }
+  return m;
+}
+
 /**
 Data structures.
 */
@@ -119,6 +126,9 @@ typedef struct
     
 #endif
     FILE *fp;
+    FmsInt temp_strings_size;
+    FmsInt temp_strings_cap;
+    char **temp_strings;
 } FmsIOContext;
 
 typedef struct
@@ -308,6 +318,12 @@ FmsIOClose(FmsIOContext *ctx)
     if(ctx == NULL) E_RETURN(1);
     fclose(ctx->fp);
     ctx->fp = NULL;
+    // Cleanup any temp strings we made
+    for(FmsInt i = 0; i < ctx->temp_strings_size; i++) {
+        FREE(ctx->temp_strings[i]);
+    }
+    FREE(ctx->temp_strings);
+
     return 0;
 }
 
@@ -880,11 +896,15 @@ FmsIOGetString(FmsIOContext *ctx, const char *path, const char **value) {
 
     // TODO: Store char pointers in ctx? Need to keep them somewhere for free() later
     FmsInt len = strlen(v);
-    char *ptr = malloc(sizeof(char) * len+1); 
-    if(!ptr)
-        E_RETURN(6);
-    memcpy(ptr, v, len+1); // Make sure to get the null term
-    *value = (const char *)ptr;
+    FmsInt idx = ctx->temp_strings_size++;
+    if(ctx->temp_strings_size >= ctx->temp_strings_cap) {
+        ctx->temp_strings_cap *= 2;
+        ctx->temp_strings = realloc(ctx->temp_strings, sizeof(char*) * ctx->temp_strings_cap);
+    }
+    ctx->temp_strings[idx] = malloc(sizeof(char) * len+1);
+    memcpy(ctx->temp_strings[idx], v, len);
+    ctx->temp_strings[idx][len] = '\0';
+    *value = (const char *)ctx->temp_strings[idx];
     return 0;
 }
 
@@ -901,6 +921,9 @@ static void
 FmsIOContextInitialize(FmsIOContext *ctx)
 {
     ctx->fp = NULL;
+    ctx->temp_strings_size = 0;
+    ctx->temp_strings_cap = 64; 
+    ctx->temp_strings = calloc(sizeof(char*), ctx->temp_strings_cap);
 }
 
 /**
