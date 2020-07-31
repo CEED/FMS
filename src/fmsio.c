@@ -1996,6 +1996,8 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
             E_RETURN(12);
     }
 
+    *data_collection = dc;
+
     return 0;
 }
 
