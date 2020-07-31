@@ -3389,8 +3389,6 @@ FmsIOBuildFmsDataCollection(FmsIODataCollectionInfo *dc_info, FmsDataCollection 
         err = FmsIOBuildFmsMetaData(md, dc_info->md);
     }
 
-    *data_collection = dc;
-
     return 0;
 }
 
