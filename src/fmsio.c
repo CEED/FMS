@@ -23,13 +23,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <errno.h>
 
 #ifdef FMS_HAVE_CONDUIT
 #include <conduit.h>
 #include <conduit_relay.h>
 #endif
 
-#define FREE(PTR) if((PTR) != NULL) free(PTR)
+// Turn this back into if(PTR) free(PTR) ?
+#ifdef _NDEBUG
+#define FREE(PTR) free(PTR)
+#else
+#define FREE(PTR) \
+do { \
+    if(!PTR) \
+        printf("Double free!\n"); \
+    free(PTR); \
+    PTR = NULL; \
+} while(0)
+#endif
 
 // Feature: If you set this to 1 then the last line is going to have 2
 #define FMS_ELE_PER_LINE 3u
@@ -320,21 +332,22 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsI
     fprintf(ctx->fp, "%s/Size: " FMS_LU "\n", path, n);
     fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[FMS_UINT64]);
 
+    if(n) {
 #if 1
-    /* Should we make it YAML-like?*/
-    fprintf(ctx->fp, "%s/Values: [", path);
-    for(i = 0; i < n; ++i)
-    {
-        for(j = 0; j < FMS_ELE_PER_LINE && i < n; j++, i++)
+        /* Should we make it YAML-like?*/
+        fprintf(ctx->fp, "%s/Values: [", path);
+        for(i = 0; i < n; ++i)
         {
-            fprintf(ctx->fp, FMS_LU, values[i]);
+            for(j = 0; j < FMS_ELE_PER_LINE && i < n; j++, i++)
+            {
+                fprintf(ctx->fp, FMS_LU, values[i]);
+                if(i < n-1)
+                    fprintf(ctx->fp, ", ");
+            }
             if(i < n-1)
-                fprintf(ctx->fp, ", ");
+                fprintf(ctx->fp, "\n");
         }
-        if(i < n-1)
-            fprintf(ctx->fp, "\n");
-    }
-    fprintf(ctx->fp, "]\n");
+        fprintf(ctx->fp, "]\n");
 #else
     /* Or should we make it a little simpler to read (write len)?*/
     fprintf(ctx->fp, "%s: %llu ", path, n);
@@ -342,6 +355,7 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsI
         fprintf(ctx->fp, "%llu ", values[i]);
     fprintf(ctx->fp, "\n");
 #endif
+    }
     return 0;
 }
 
@@ -474,33 +488,410 @@ FmsIOAddString(FmsIOContext *ctx, const char *path, const char *value)
 }
 
 /* TODO: write the other write/read methods*/
+#define FMS_BUFFER_SIZE 512
 
-/* Get functions. Assume that the file pointer is at the right place. */
+/* Get functions. Assume that the file pointer is at the right place. 
+    Q: Do we really need to null check the parameters at this level? */
 
-// int
-// FmsIOGetInt(FmsIOContext *ctx, const char *path, int *value)
-// {
-//     char *line = NULL;
-//     ssize_t nread = 0;
-//     size_t len = 0;
-//     int retval = 0;
-//     if(ctx) E_RETURN(1);
-//     if(path) E_RETURN(2);
-//     if(value) E_RETURN(3);
-//     if((nread = getline(&line, &len, ctx->fp)) != -1)
-//     {
-//         size_t klen = strlen(path);
-//         if(strncmp(line, path, klen) == 0)
-//         {
-//             if(sscanf(line+klen+1, "%d", value) != 1)
-//                 retval = 4;
-//         }
-//         else
-//             retval = 5;
-//         FREE(line);
-//     }
-//     return retval;
-// }
+// Buff should be of size FMS_BUFFER_SIZE unless you are sure of the string size
+static int
+FmsIOReadLine(FmsIOContext *ctx, char *buff) {
+    FmsInt len = 0;
+    if(!ctx) E_RETURN(1);
+    if(!buff) E_RETURN(2);
+    if(fgets(buff, FMS_BUFFER_SIZE, ctx->fp) == NULL) {
+        E_RETURN(3);
+    }
+    // Remove the newline from the end of the string
+    len = strlen(buff);
+    buff[len-1] = '\0';
+    // buff[len] = '\0';
+    return 0;
+}
+
+static int
+FmsIOReadKeyValue(FmsIOContext *ctx, char *key, char *value) {
+    char buff[FMS_BUFFER_SIZE * 2];
+    FmsInt N = 0;
+    char *key_end = NULL;
+    if(!ctx) E_RETURN(1);
+    if(fgets(buff, FMS_BUFFER_SIZE * 2, ctx->fp) == NULL)
+        return 2;   // This could mean EoF which is not always an error.
+    if((key_end = strchr(buff, ':')) == NULL)
+        E_RETURN(3);
+
+    if(key) {
+        N = key_end - buff;
+        if(N >= FMS_BUFFER_SIZE)
+            E_RETURN(4);
+        memcpy(key, buff, N);
+        key[N] = '\0';
+    }
+
+    // After the ':' is a space then the value starts
+    if(value) {
+        N = 0;
+        N = strlen(key_end+2);
+        if(N >= FMS_BUFFER_SIZE)
+            E_RETURN(5);
+        // Remove the \n from the end
+        memcpy(value, key_end+2, N);
+        value[N-1] = '\0';
+        // value[N] = '\0';
+    }
+    return 0;
+}
+
+static int
+FmsIOHasPath(FmsIOContext *ctx, const char *path) {
+    int err = 0;
+    long curr_loc = 0;
+    char k[FMS_BUFFER_SIZE];
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+
+    long cur_loc = ftell(ctx->fp);
+    if(cur_loc < 0)
+        E_RETURN(3);
+    err = FmsIOReadKeyValue(ctx, k, NULL);
+    fseek(ctx->fp, cur_loc, SEEK_SET);
+    // EoF, not an error in this context - just means return false.
+    if(err == 2)
+        return 0;
+    else if(err)
+        E_RETURN(4);
+
+    // Need to find each / from the right and compare each time to match conduit functionality
+    int found = 0;
+    while(1) {
+        if(strcmp(k, path) == 0) {
+            found = 1;
+            break;
+        }
+        char *ptr = strrchr(k, '/');
+        if(ptr == NULL)
+            break;
+        *ptr = '\0';
+    }
+    return found;
+    
+}
+
+static int
+FmsIOGetInt(FmsIOContext *ctx, const char *path, FmsInt *value) {
+    char k[FMS_BUFFER_SIZE], v[FMS_BUFFER_SIZE];
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!value) E_RETURN(3);
+
+    // Error reading line
+    if(FmsIOReadKeyValue(ctx, k, v))
+        E_RETURN(4);
+    
+    // Path & key do not match
+    if(strcmp(k, path))
+        E_RETURN(5);
+
+#if UINT_MAX == ULONG_MAX
+    *value = strtoull(v, NULL, 10);
+#else
+    *value = strtoul(v, NULL, 10);
+#endif
+
+    // Potential error
+    if(value == 0) {
+        if(errno == EINVAL)
+            E_RETURN(6);
+
+        if(errno == ERANGE)
+            E_RETURN(7);
+    }
+    return 0;
+}
+
+/// You are responsible for freeing values
+static int
+FmsIOGetTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n) {
+    int err = 0;
+    char k[FMS_BUFFER_SIZE], v[FMS_BUFFER_SIZE];
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!type) E_RETURN(3);
+    if(!values) E_RETURN(4);
+    if(!n) E_RETURN(5);
+
+    /* Arrays are written like:
+        path/Size: n
+        path/Type: type
+        path/Values: [1,2,3,
+        4,5,6
+        7,8,9]
+    */
+
+   {
+        // Error reading line
+        if(FmsIOReadKeyValue(ctx, k, v))
+            E_RETURN(6);
+        
+        char *ksize = join_keys(path, "Size");
+        err = strcmp(k, ksize);
+        FREE(ksize);
+        // Path & key didn't match
+        if(err)
+            E_RETURN(7);
+
+        #if UINT_MAX == ULONG_MAX
+            *n = strtoull(v, NULL, 10);
+        #else
+            *n = strtoul(v, NULL, 10);
+        #endif
+
+        if(*n == 0) {
+            if(errno == EINVAL) E_RETURN(8);
+            if(errno == ERANGE) E_RETURN(9);
+        }
+   }
+
+   {
+        // Error reading line
+        if(FmsIOReadKeyValue(ctx, k, v))
+            E_RETURN(10);
+        
+        char *ktype= join_keys(path, "Type");
+        err = strcmp(k, ktype);
+        FREE(ktype);
+        // Path & key didn't match
+        if(err)
+            E_RETURN(11);
+
+        if(FmsGetIntTypeFromName(v, type))
+            E_RETURN(12);
+   }
+
+    // Values does not get written if Size == 0
+    if(*n == 0)
+        return 0;
+
+    if(FmsIOReadKeyValue(ctx, k, v))
+        E_RETURN(14);
+
+    char *kvalues = join_keys(path, "Values");
+    err = strcmp(k, kvalues);
+    FREE(kvalues);
+    if(err)
+        E_RETURN(15);
+
+#define READ_ARRAY_DATA(DEST_T, FUNC) \
+do { \
+    DEST_T *data = malloc(sizeof(DEST_T) * *n); \
+    FmsInt i = 0; \
+    while(1) { \
+        FmsInt len = strlen(v); \
+        char *off = v, *newoff = NULL; \
+        if(off[0] == '[') \
+            off++; \
+        while(len) { \
+            data[i++] = (DEST_T)FUNC(off, &newoff, 10); \
+            newoff++; \
+            if(*newoff = ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
+            if(newoff - v >= len) break; \
+            off = newoff; \
+        } \
+        if(strchr(v, ']')) break; \
+        if(FmsIOReadLine(ctx, v)) break; \
+    } \
+    *values = (void*)data; \
+} while(0)
+
+#if UINT_MAX == ULONG_MAX
+#define UNSIGNED_FUNC strtoull
+#define SIGNED_FUNC strtoll
+#else
+#define UNSIGNED_FUNC strtoul
+#define SIGNED_FUNC strtol
+#endif 
+
+    switch(*type) {
+    case FMS_INT8:
+        READ_ARRAY_DATA(int8_t, SIGNED_FUNC);
+        break;
+    case FMS_INT16:
+        READ_ARRAY_DATA(int16_t, SIGNED_FUNC);
+        break;
+    case FMS_INT32:
+        READ_ARRAY_DATA(int32_t, SIGNED_FUNC);
+        break;
+    case FMS_INT64:
+        READ_ARRAY_DATA(int64_t, SIGNED_FUNC);
+        break;
+    case FMS_UINT8:
+        READ_ARRAY_DATA(uint8_t, SIGNED_FUNC);
+        break;
+    case FMS_UINT16:
+        READ_ARRAY_DATA(uint16_t, SIGNED_FUNC);
+        break;
+    case FMS_UINT32:
+        READ_ARRAY_DATA(uint32_t, SIGNED_FUNC);
+        break;
+    case FMS_UINT64:
+        READ_ARRAY_DATA(uint64_t, SIGNED_FUNC);
+        break;
+    default:
+        E_RETURN(16);
+        break;
+    }
+#undef READ_ARRAY_DATA
+#undef UNSIGNED_FUNC
+#undef SIGNED_FUNC
+
+    return 0;
+}
+
+/// You are responsible for freeing values
+static int
+FmsIOGetScalarArray(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n) {
+    int err = 0;
+    char k[FMS_BUFFER_SIZE], v[FMS_BUFFER_SIZE];
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!type) E_RETURN(3);
+    if(!values) E_RETURN(4);
+    if(!n) E_RETURN(5);
+
+    /* Arrays are written like:
+        path/Size: n
+        path/Type: type
+        path/Values: [1,2,3,
+        4,5,6
+        7,8,9]
+    */
+
+   {
+        // Error reading line
+        if(FmsIOReadKeyValue(ctx, k, v))
+            E_RETURN(6);
+        
+        char *ksize = join_keys(path, "Size");
+        err = strcmp(k, ksize);
+        FREE(ksize);
+        // Path & key didn't match
+        if(err)
+            E_RETURN(7);
+
+        #if UINT_MAX == ULONG_MAX
+            *n = strtoull(v, NULL, 10);
+        #else
+            *n = strtoul(v, NULL, 10);
+        #endif
+
+        if(*n == 0) {
+            if(errno == EINVAL) E_RETURN(8);
+            if(errno == ERANGE) E_RETURN(9);
+        }
+   }
+
+   {
+        // Error reading line
+        if(FmsIOReadKeyValue(ctx, k, v))
+            E_RETURN(10);
+        
+        char *ktype= join_keys(path, "Type");
+        err = strcmp(k, ktype);
+        FREE(ktype);
+        // Path & key didn't match
+        if(err)
+            E_RETURN(11);
+
+        if(FmsGetScalarTypeFromName(v, type))
+            E_RETURN(12);
+   }
+
+    // Values does not get written if Size == 0
+    if(*n == 0)
+        return 0;
+
+    if(FmsIOReadKeyValue(ctx, k, v))
+        E_RETURN(14);
+
+    char *kvalues = join_keys(path, "Values");
+    err = strcmp(k, kvalues);
+    FREE(kvalues);
+    if(err)
+        E_RETURN(15);
+
+// Had to remake this for scalar because strto(f/d) doesn't take a base
+#define READ_ARRAY_DATA(DEST_T, FUNC, SIZE) \
+do { \
+    DEST_T *data = malloc(sizeof(DEST_T) * SIZE); \
+    FmsInt i = 0; \
+    while(1) { \
+        FmsInt len = strlen(v); \
+        char *off = v, *newoff = NULL; \
+        if(off[0] == '[') \
+            off++; \
+        while(len) { \
+            data[i++] = (DEST_T)FUNC(off, &newoff); \
+            newoff++; \
+            if(*newoff = ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
+            if(newoff - v >= len) break; \
+            off = newoff; \
+        } \
+        if(strchr(v, ']')) break; \
+        if(FmsIOReadLine(ctx, v)) break; \
+    } \
+    *values = (void*)data; \
+} while(0)
+
+    switch(*type) {
+    case FMS_FLOAT:
+        READ_ARRAY_DATA(float, strtof, *n);
+        break;
+    case FMS_DOUBLE:
+        READ_ARRAY_DATA(double, strtod, *n);
+        break;
+    case FMS_COMPLEX_FLOAT:
+        READ_ARRAY_DATA(float, strtof, (*n)*2);
+        break;
+    case FMS_COMPLEX_DOUBLE:
+        READ_ARRAY_DATA(double, strtod, (*n)*2);
+        break;
+    default:
+        E_RETURN(16);
+        break;
+    }
+
+    return 0;
+}
+
+static int
+FmsIOGetString(FmsIOContext *ctx, const char *path, const char **value) {
+    char k[FMS_BUFFER_SIZE], v[FMS_BUFFER_SIZE];
+    if(!ctx) E_RETURN(1);
+    if(!path) E_RETURN(2);
+    if(!value) E_RETURN(3);
+
+    // Error reading line
+    if(FmsIOReadKeyValue(ctx, k, v))
+        E_RETURN(4);
+    
+    // Path & key do not match
+    if(strcmp(k, path))
+        E_RETURN(5);
+
+    // TODO: Store char pointers in ctx? Need to keep them somewhere for free() later
+    FmsInt len = strlen(v);
+    char *ptr = malloc(sizeof(char) * len+1); 
+    if(!ptr)
+        E_RETURN(6);
+    memcpy(ptr, v, len+1); // Make sure to get the null term
+    *value = (const char *)ptr;
+    return 0;
+}
+
+static int
+FmsIOGetStringArray(FmsIOContext *ctx, const char *path, const char ***values, FmsInt *n) {
+    E_RETURN(1); // TODO: Implement
+}
 
 /**
 @brief This function initializes the IO context .
@@ -532,7 +923,12 @@ FmsIOFunctionsInitialize(FmsIOFunctions *obj)
         obj->add_scalar_array = FmsIOAddScalarArray;
         obj->add_string = FmsIOAddString;
         /*...*/
-        /*obj->get_int = FmsIOGetInt; */
+        obj->has_path = FmsIOHasPath;
+        obj->get_int = FmsIOGetInt;
+        obj->get_typed_int_array = FmsIOGetTypedIntArray;
+        obj->get_scalar_array = FmsIOGetScalarArray;
+        obj->get_string = FmsIOGetString;
+        obj->get_string_array = FmsIOGetStringArray;
 #ifdef MEANDERING_THOUGHTS
         obj->begin_list = FmsIOBeginList;
         obj->end_list = FmsIOEndList;
