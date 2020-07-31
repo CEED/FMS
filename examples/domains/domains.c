@@ -24,19 +24,19 @@
 /* All of the coordinates defined in a global ordering. */
 double global_coords[] = {
 0., 0.,
-0.36, 0.,
+0.4, 0.,
 0.65, 0.,
 1., 0.,
 
 0., 0.25,
-0.25, 0.25,
-0.6, 0.25,
+0.25, 0.28,
+0.65, 0.25,
 1., 0.2,
 
 0., 0.55,
 0.16, 0.75,
-0.5, 0.66,
-1., 0.66,
+0.5, 0.6,
+1., 0.6,
 
 0., 1.,
 0.36, 1.,
@@ -47,7 +47,7 @@ double global_coords[] = {
 /* Domain local index to global index */
 int d0_global_index[] = {4,5,10,8,9,12};
 int d1_global_index[] = {0,1,2,4,5,6,10};
-int d2_global_index[] = {2,3,6,7,10,11};
+int d2_global_index[] = {2,3,6,7,10,11,14,15};
 int d3_global_index[] = {10,9,14,12,13,15};
 
 /* Domain edges expressed in their local vertex ordering */
@@ -84,7 +84,11 @@ int d2_edge_vert[] = {
     2,4, /* 5 */
     3,4, /* 6 */
     3,5, /* 7 */
-    4,5 /* 8 */
+    4,5, /* 8 */
+    4,6, /* 9 */
+    5,6, /* 10 */
+    6,7, /* 11 */
+    5,7  /* 12 */
 };
 int d3_edge_vert[] = {
     0,1, /* 0 */
@@ -116,7 +120,9 @@ int d2_tri_edge[] = {
     0,1,4, /* 0 */
     1,2,3, /* 1 */
     5,4,6, /* 2 */
-    6,7,8 /* 3 */
+    6,7,8, /* 3 */
+    8,10,9,  /* 4 */
+    10,12,11 /* 5 */
 };
 int d3_tri_edge[] = {
     0,1,2, /* 0 */
