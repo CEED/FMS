@@ -37,7 +37,7 @@
 #define FREE(PTR) \
 do { \
     if(!PTR) \
-        printf("Double free!\n"); \
+        printf("Double free! File: " __FILE__ " Line: %d\n", __LINE__); \
     free(PTR); \
     PTR = NULL; \
 } while(0)
@@ -1756,7 +1756,7 @@ FmsIOReadFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
         {
             // Get data array
             char *kdata = join_keys(key, "Data");
-            err = (*io->get_string_array)(ctx, kdata, (const char***)&mdinfo->data, &mdinfo->size);
+            err = (*io->get_string)(ctx, kdata, (const char**)&mdinfo->data);
             FREE(kdata);
             if(err)
                 E_RETURN(7);
@@ -3668,6 +3668,6 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
         E_RETURN(4);
     }
 
+
     return 0;
 }
-
