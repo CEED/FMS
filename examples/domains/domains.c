@@ -406,9 +406,11 @@ main(int argc, char *argv[])
     int cycle = 1234;
     double dtime = 1.2345678;
     FmsDataCollectionAttachMetaData(dc, &mdata);
-    FmsMetaDataSetIntegers(mdata, "cycle", FMS_INT32, 1, (void**)&cycle);
-    FmsMetaDataSetScalars(mdata, "time", FMS_DOUBLE, 1, (void**)&dtime);
-    FmsMetaDataSetString(mdata, "Description", "Multiple domain example file");
+    FmsMetaData *mdata_objects;
+    FmsMetaDataSetMetaData(mdata, "Info", 3, &mdata_objects);
+    FmsMetaDataSetIntegers(mdata_objects[0], "cycle", FMS_INT32, 1, (void**)&cycle);
+    FmsMetaDataSetScalars(mdata_objects[1], "time", FMS_DOUBLE, 1, (void**)&dtime);
+    FmsMetaDataSetString(mdata_objects[2], "Description", "Multiple domain example file");
 
     /* Write the data out. */
     FmsIOWrite("domains.fms", protocol, dc);
