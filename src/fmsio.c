@@ -100,6 +100,14 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
   } while (0)
 #endif
 
+static inline int FmsIOCopyString(const char *str, char **str_copy_p) {
+  if (str == NULL) { *str_copy_p = NULL; return 0; }
+  char *str_copy = strdup(str);
+  if (str_copy == NULL) { return 1; }
+  *str_copy_p = str_copy;
+  return 0;
+}
+
 // Return m=2^k, k-integer, such that: m >= n > m/2
 static inline FmsInt NextPow2(FmsInt n) {
   FmsInt m = 1;
@@ -1756,10 +1764,12 @@ FmsIOReadFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
         {
             // Get data array
             char *kdata = join_keys(key, "Data");
-            err = (*io->get_string)(ctx, kdata, (const char**)&mdinfo->data);
+            const char *md_str = NULL;
+            err = (*io->get_string)(ctx, kdata, &md_str);
             FREE(kdata);
-            if(err)
-                E_RETURN(7);
+            /* Copy the string we got from the get_string. Its lifetime has to be tied to the metadata. */
+            if(err || FmsIOCopyString(md_str, (char **)&mdinfo->data))
+                E_RETURN(7);            
             break;
         }
         case FMS_META_DATA:
@@ -1772,7 +1782,7 @@ FmsIOReadFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
             FREE(ksize);
             if(err)
                 E_RETURN(8);
-            mdinfo->data = calloc(sizeof(FmsIOMetaDataInfo), mdinfo->size);
+            mdinfo->data = calloc(mdinfo->size, sizeof(FmsIOMetaDataInfo));
             mds = (FmsIOMetaDataInfo *)mdinfo->data;
             kdata = join_keys(key, "Data");
             for(i = 0; i < mdinfo->size; i++)
@@ -2903,9 +2913,8 @@ FmsIOReadFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsIOF
         char *kmd = join_keys(key, "MetaData");
         if((*io->has_path)(ctx, kmd))
         {
-            /* TODO: Put the function call here when it's done
-            err = FmsIOReadFmsMetaData(ctx, io, kmd, md); */
-            err = 1;
+            field_info->md = calloc(sizeof(FmsIOMetaDataInfo), 1);
+            err = FmsIOReadFmsMetaData(ctx, io, kmd, field_info->md);
         }
         FREE(kmd);
         if(err)
@@ -3157,7 +3166,7 @@ FmsIOReadFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io, const char *ke
     return 0;
 }
 
-static inline int
+static int
 FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
     if(!md) E_RETURN(1);
     if(!minfo) E_RETURN(2);
@@ -3172,7 +3181,15 @@ FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
             FmsMetaDataSetString(md, minfo->name, (const char*)minfo->data);
             break;
         case FMS_META_DATA:
-            FmsMetaDataSetMetaData(md, minfo->name, minfo->size, (FmsMetaData**)minfo->data);
+            { /* New scope */
+            FmsInt i;
+            FmsMetaData *child = NULL;
+            FmsIOMetaDataInfo *mds = (FmsIOMetaDataInfo*)minfo->data;
+            FmsMetaDataSetMetaData(md, minfo->name, minfo->size, &child);
+            for(i = 0; i < minfo->size; ++i)
+                FmsIOBuildFmsMetaData(child[i], &mds[i]);
+            }
+            break;
         default:
             // Corrupt mdtype
             E_RETURN(3);
@@ -3406,10 +3423,9 @@ FmsIODestroyFmsIOMetaDataInfo(FmsIOMetaDataInfo *minfo) {
             FREE(minfo->data);
             break;
         case FMS_META_DATA: {
-            FmsIOMetaDataInfo **mds = (FmsIOMetaDataInfo**)minfo->data;
+            FmsIOMetaDataInfo *mds = (FmsIOMetaDataInfo*)minfo->data;
             for(FmsInt i = 0; i < minfo->size; i++) {
-                FmsIODestroyFmsIOMetaDataInfo(mds[i]);
-                FREE(mds[i]);
+                FmsIODestroyFmsIOMetaDataInfo(&mds[i]);
             }
             FREE(minfo->data);
             break;
@@ -3419,7 +3435,6 @@ FmsIODestroyFmsIOMetaDataInfo(FmsIOMetaDataInfo *minfo) {
             E_RETURN(2);
             break;
     }
-    FREE(minfo);
     return 0;
 }
 
@@ -3526,14 +3541,16 @@ FmsIODestroyFmsIODataCollectionInfo(FmsIODataCollectionInfo *dc_info) {
             FREE(finfo->data);
             if(finfo->md) {
                 FmsIODestroyFmsIOMetaDataInfo(finfo->md);
+                FREE(finfo->md);
             }
         }
         FREE(dc_info->fields);
     }
 
-    // If we have MetaData attach it
+    // If we have MetaData destroy it
     if(dc_info->md) {
         FmsIODestroyFmsIOMetaDataInfo(dc_info->md);
+        FREE(dc_info->md);
     }
 
     FREE(dc_info);
