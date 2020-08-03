@@ -2027,6 +2027,7 @@ int FmsMetaDataSetIntegers(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.int_type = int_type;
   mdata->num_entries = size;
   mdata->data = md_data;
+  memcpy(md_data, data, size*sizeof_int_type);
   *data = md_data;
   return 0;
 }
@@ -2048,6 +2049,7 @@ int FmsMetaDataSetScalars(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.scalar_type = scal_type;
   mdata->num_entries = size;
   mdata->data = md_data;
+  memcpy(md_data, data, size*sizeof_scal_type);
   *data = md_data;
   return 0;
 }
