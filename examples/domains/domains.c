@@ -24,25 +24,22 @@
 
 /* All of the coordinates defined in a global ordering. */
 double global_coords[] = {
-0., 0.,
-0.4, 0.,
-0.65, 0.,
-1., 0.,
-
-0., 0.25,
-0.25, 0.28,
-0.65, 0.25,
-1., 0.2,
-
-0., 0.55,
-0.16, 0.75,
-0.5, 0.6,
-1., 0.6,
-
-0., 1.,
-0.36, 1.,
-0.65, 0.9,
-1., 1.
+0., 0.,     /* 0 */
+0.4, 0.,    /* 1 */
+0.65, 0.,   /* 2 */
+1., 0.,     /* 3 */
+0., 0.25,   /* 4 */
+0.25, 0.28, /* 5 */
+0.65, 0.25, /* 6 */
+1., 0.2,    /* 7 */
+0., 0.55,   /* 8 */
+0.16, 0.75, /* 9 */
+0.5, 0.6,   /* 10 */
+1., 0.6,    /* 11 */
+0., 1.,     /* 12 */
+0.36, 1.,   /* 13 */
+0.65, 0.9,  /* 14 */
+1., 1.      /* 15 */
 };
 
 /* Domain local index to global index */
@@ -74,7 +71,7 @@ int d1_edge_vert[] = {
     3,4, /* 7 */
     4,5, /* 8 */
     5,6, /* 9 */
-    6,4  /* 10 */
+    4,6  /* 10 */
 };
 int d2_edge_vert[] = {
     0,2, /* 0 */
@@ -132,6 +129,7 @@ int d3_tri_edge[] = {
     5,6,8  /* 3 */
 };
 
+/* Adds coordinate dofs at vertices */
 double *
 append_domain_coords(int dom, double *ptr, const int *global_index, int nverts)
 {
@@ -152,43 +150,104 @@ append_domain_coords(int dom, double *ptr, const int *global_index, int nverts)
     return ptr;
 }
 
+/* Adds coordinate dofs along edges */
 double *
-append_domain_coords_edge(int dom, double *ptr, const int *global_index, int verts,
+append_domain_coords_edge(int dom, int order, double *ptr, const int *global_index,
     const int *edges, int nedges)
 {
-    int i, v0, v1;
-    double xoffset, yoffset, pt[2], travel = 0.02;
+    int i, j, v0, v1;
+    double t, xoffset, yoffset, pt[2], travel = 0.02;
 
-    for(i = 0; i < nedges; ++i)
+    if(order > 1)
     {
-        /* Get the i'th edge and get the global indices of its vertices. */
-        v0 = global_index[edges[2*i]];
-        v1 = global_index[edges[2*i+1]];
-
-        /* Figure out how much to perturb the point. */
-        switch((v0+v1) % 8)
+        for(i = 0; i < nedges; ++i)
         {
-        case 0: xoffset = -travel; yoffset = 0;       break;
-        case 1: xoffset = -travel; yoffset = -travel; break;
-        case 2: xoffset = 0.;      yoffset = -travel; break;
-        case 3: xoffset = travel;  yoffset = -travel; break;
-        case 4: xoffset = travel;  yoffset = 0;       break;
-        case 5: xoffset = travel;  yoffset = travel;  break;
-        case 6: xoffset = 0;       yoffset = travel;  break;
-        case 7: xoffset = -travel; yoffset = travel;  break;
+            /* Get the i'th edge and get the global indices of its vertices. */
+            v0 = global_index[edges[2*i]];
+            v1 = global_index[edges[2*i+1]];
+
+            for(j = 0; j < order-1; ++j)
+            {
+                /* Figure out how much to perturb the point. */
+                switch((v0+v1+j) % 8)
+                {
+                case 0: xoffset = -travel; yoffset = 0;       break;
+                case 1: xoffset = -travel; yoffset = -travel; break;
+                case 2: xoffset = 0.;      yoffset = -travel; break;
+                case 3: xoffset = travel;  yoffset = -travel; break;
+                case 4: xoffset = travel;  yoffset = 0;       break;
+                case 5: xoffset = travel;  yoffset = travel;  break;
+                case 6: xoffset = 0;       yoffset = travel;  break;
+                case 7: xoffset = -travel; yoffset = travel;  break;
+                }
+
+                t = ((double)(j+1)) / ((double)order);
+
+                /* Compute a point along the edge and perturb it. */
+                pt[0] = ((t) * global_coords[v0*2+0]) + ((1.-t) * global_coords[v1*2+0]) + xoffset;
+                pt[1] = ((t) * global_coords[v0*2+1]) + ((1.-t) * global_coords[v1*2+1]) + yoffset;
+
+                *ptr++ = pt[0];
+                *ptr++ = pt[1];
+
+                /* Print value to Point3D output. */
+                printf("%lg %lg 0. %d\n", pt[0],pt[1], dom);
+            }
         }
-
-        /* Compute the edge midpoint and perturb it. */
-        pt[0] = 0.5 * (global_coords[v0*2+0] + global_coords[v1*2+0]) + xoffset;
-        pt[1] = 0.5 * (global_coords[v0*2+1] + global_coords[v1*2+1]) + yoffset;
-
-        *ptr++ = pt[0];
-        *ptr++ = pt[1];
-
-        /* Print value to Point3D output. */
-        printf("%lg %lg 0. %d\n", pt[0],pt[1], dom);
     }
 
+    return ptr;
+}
+
+/* Adds coordinate dofs on faces */
+double *
+append_domain_coords_face(int dom, int order, double *ptr, const int *global_index,
+    const int *edges, const int *tri, int ntri)
+{
+    int i,j,edge,v0,v1;
+    double pt[2], xoffset, yoffset, travel = 0.01;
+    if(order == 3)
+    {
+        for(i = 0; i < ntri; ++i)
+        {
+            pt[0] = pt[1] = pt[2] = 0.;
+            for(j = 0; j < 3; ++j)
+            {
+                /* Current edge in tri*/
+                int edge = tri[3*i+j];
+
+                /* vertex indices of edge endpoints */
+                v0 = global_index[edges[2*edge]];
+                v1 = global_index[edges[2*edge+1]];
+
+                pt[0] += global_coords[v0*2+0];
+                pt[1] += global_coords[v0*2+1];
+                pt[0] += global_coords[v1*2+0];
+                pt[1] += global_coords[v1*2+1];
+            }
+            /* triangle center. */
+            pt[0] /= 6.;
+            pt[1] /= 6.;
+
+            switch(i%4)
+            {
+            case 0: xoffset = -travel; yoffset = 0.;      break;
+            case 1: xoffset = 0.;      yoffset = -travel; break;
+            case 2: xoffset = travel;  yoffset = 0.;      break;
+            case 3: xoffset = 0.;      yoffset = travel;  break;
+            }
+
+            /* perturb the point. */
+            pt[0] += xoffset;
+            pt[1] += yoffset;
+
+            *ptr++ = pt[0];
+            *ptr++ = pt[1];
+
+            /* Print value to Point3D output. */
+            printf("%lg %lg 0. %d\n", pt[0],pt[1], dom);
+        }
+    }
     return ptr;
 }
 
@@ -201,7 +260,11 @@ main(int argc, char *argv[])
     {
         protocol = argv[1];
         if(argc > 2)
+        {
             order = atoi(argv[2]);
+            if(order < 1 || order > 3)
+                return -1;
+        }
     }
 
     /* Create a mesh */
@@ -293,7 +356,14 @@ main(int argc, char *argv[])
         ndofs[1] = nverts[1] + nedges[1];
         ndofs[2] = nverts[2] + nedges[2];
         ndofs[3] = nverts[3] + nedges[3];
-    }        
+    }
+    else if(order == 3)
+    {
+        ndofs[0] = nverts[0] + 2*nedges[0] + ntri[0];
+        ndofs[1] = nverts[1] + 2*nedges[1] + ntri[1];
+        ndofs[2] = nverts[2] + 2*nedges[2] + ntri[2];
+        ndofs[3] = nverts[3] + 2*nedges[3] + ntri[3];
+    }
     int ntotal_dofs = ndofs[0] + ndofs[1] + ndofs[2] + ndofs[3];
     double *coord_data = (double *)malloc(ntotal_dofs * sizeof(double)*2);
     double *cptr = coord_data;
@@ -301,29 +371,44 @@ main(int argc, char *argv[])
     /* Write a Point3D header since we will write coord values to stdout in a plottable way. */
     printf("X Y Z domain\n");
 
-    /* Write the coordinate data. */
+    /* Make the coordinate data. */
     cptr = append_domain_coords(0, cptr, d0_global_index, nverts[0]);
-    if(order == 2)
-        cptr = append_domain_coords_edge(0, cptr, d0_global_index, nverts[0], d0_edge_vert, nedges[0]);
-    cptr = append_domain_coords(1, cptr, d1_global_index, nverts[1]);
-    if(order == 2)
-        cptr = append_domain_coords_edge(1, cptr, d1_global_index, nverts[1], d1_edge_vert, nedges[1]);
-    cptr = append_domain_coords(2, cptr, d2_global_index, nverts[2]);
-    if(order == 2)
-        cptr = append_domain_coords_edge(2, cptr, d2_global_index, nverts[2], d2_edge_vert, nedges[2]);
-    cptr = append_domain_coords(3, cptr, d3_global_index, nverts[3]);
-    if(order == 2)
-        cptr = append_domain_coords_edge(3, cptr, d3_global_index, nverts[3], d3_edge_vert, nedges[3]);
+    cptr = append_domain_coords_edge(0, order, cptr, d0_global_index, d0_edge_vert, nedges[0]);
+    cptr = append_domain_coords_face(0, order, cptr, d0_global_index, d0_edge_vert, d0_tri_edge, ntri[0]);
 
-    /*Q: suppose that the coordinate order was 2+, would the extra dofs go here 
-         or would they appear after their individual domain loops above?
-     */
+    cptr = append_domain_coords(1, cptr, d1_global_index, nverts[1]);
+    cptr = append_domain_coords_edge(1, order, cptr, d1_global_index, d1_edge_vert, nedges[1]);
+    cptr = append_domain_coords_face(1, order, cptr, d1_global_index, d1_edge_vert, d1_tri_edge, ntri[1]);
+
+    cptr = append_domain_coords(2, cptr, d2_global_index, nverts[2]);
+    cptr = append_domain_coords_edge(2, order, cptr, d2_global_index, d2_edge_vert, nedges[2]);
+    cptr = append_domain_coords_face(2, order, cptr, d2_global_index, d2_edge_vert, d2_tri_edge, ntri[2]);
+
+    cptr = append_domain_coords(3, cptr, d3_global_index, nverts[3]);
+    cptr = append_domain_coords_edge(3, order, cptr, d3_global_index, d3_edge_vert, nedges[3]);
+    cptr = append_domain_coords_face(3, order, cptr, d3_global_index, d3_edge_vert, d3_tri_edge, ntri[3]);
+
+    /* Add the coordinates to the data collection. */
     FmsField coords;
     FmsDataCollectionAddField(dc, "coords", &coords);
     FmsFieldSet(coords, coords_fd, 2, FMS_BY_VDIM, FMS_DOUBLE, coord_data);
 
+    /* Add some field metadata. (optional) */
+    FmsMetaData coords_mdata;
+    FmsFieldAttachMetaData(coords, &coords_mdata);
+    FmsMetaDataSetString(coords_mdata, "units", "cm");
+
     /* Set the coordinates for the component. */
     FmsComponentSetCoordinates(surface, coords);
+
+    /* Add some metadata. (optional) */
+    FmsMetaData mdata;
+    int cycle = 1234;
+    double dtime = 1.2345678;
+    FmsDataCollectionAttachMetaData(dc, &mdata);
+    FmsMetaDataSetIntegers(mdata, "cycle", FMS_INT32, 1, (void**)&cycle);
+    FmsMetaDataSetScalars(mdata, "time", FMS_DOUBLE, 1, (void**)&dtime);
+    FmsMetaDataSetString(mdata, "Description", "Multiple domain example file");
 
     /* Write the data out. */
     FmsIOWrite("domains.fms", protocol, dc);

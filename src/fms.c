@@ -1858,6 +1858,7 @@ int FmsDataCollectionAttachMetaData(FmsDataCollection dc, FmsMetaData *mdata) {
   if (md == NULL) {
     md = calloc(1, sizeof(*md));
     if (md == NULL) { E_RETURN(3); }
+    dc->mdata = md;
   } else {
     int err = FmsMetaDataClear(md);
     if (err) { E_RETURN(err); }
@@ -1995,6 +1996,7 @@ int FmsFieldAttachMetaData(FmsField field, FmsMetaData *mdata) {
   if (md == NULL) {
     md = calloc(1, sizeof(*md));
     if (md == NULL) { E_RETURN(3); }
+    field->mdata = md;
   } else {
     int err = FmsMetaDataClear(md);
     if (err) { E_RETURN(err); }
