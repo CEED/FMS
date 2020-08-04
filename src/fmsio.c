@@ -83,8 +83,8 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
           "Error code: %d\n"
           "Function:   %s\n"
           "File:       %s:%d\n\n"
-          "Aborting ...\n\n", err_code, func, file, line);
-  abort();
+/*          "Aborting ...\n\n"*/, err_code, func, file, line);
+/*  abort();*/
 }
 #ifndef _MSC_VER
 #define FMS_PRETTY_FUNCTION __PRETTY_FUNCTION__
@@ -988,6 +988,10 @@ FmsIOOpenConduit(FmsIOContext *ctx, const char *filename, const char *mode)
     {
         /* If we're not writing then read it all upfront into ctx->root. */
         conduit_relay_io_load(filename, ctx->protocol, NULL, ctx->root);
+
+#if 1
+        conduit_relay_io_save(ctx->root, "read.yaml", "yaml", NULL);
+#endif
     }
 
     return 0;
@@ -1176,10 +1180,102 @@ FmsIOAddStringConduit(FmsIOContext *ctx, const char *path, const char *value)
     return 0;
 }
 
+/**
+Conduit has various back-ends that write/read data. Not all of these can preserve
+the exact type information that was used to write the data when it is read back in.
+Some of them preserve it all though. To be more forgiving here, allow some fuzz
+in the types. We call this rather than functions that expect a specific Conduit
+int type so we do not run into errors.
+*/
+static int
+FmsIOConduitNode2FmsInt(conduit_node *node, FmsInt *value)
+{
+    if(!node) E_RETURN(1);
+    const conduit_datatype *dt = conduit_node_dtype(node);
+    if(dt)
+    {
+        if(conduit_datatype_is_number(dt))
+        {
+            if(conduit_datatype_is_char(dt))
+                *value = (FmsInt)conduit_node_as_char(node);
+            else if(conduit_datatype_is_short(dt))
+                *value = (FmsInt)conduit_node_as_short(node);
+            else if(conduit_datatype_is_int(dt))
+                *value = (FmsInt)conduit_node_as_int(node);
+            else if(conduit_datatype_is_long(dt))
+                *value = (FmsInt)conduit_node_as_long(node);
+
+            else if(conduit_datatype_is_unsigned_char(dt))
+                *value = (FmsInt)conduit_node_as_unsigned_char(node);
+            else if(conduit_datatype_is_unsigned_short(dt))
+                *value = (FmsInt)conduit_node_as_unsigned_short(node);
+            else if(conduit_datatype_is_unsigned_int(dt))
+                *value = (FmsInt)conduit_node_as_unsigned_int(node);
+            else if(conduit_datatype_is_unsigned_long(dt))
+                *value = (FmsInt)conduit_node_as_unsigned_long(node);
+
+            else if(conduit_datatype_is_int8(dt))
+                *value = (FmsInt)conduit_node_as_int8(node);
+            else if(conduit_datatype_is_int16(dt))
+                *value = (FmsInt)conduit_node_as_int16(node);
+            else if(conduit_datatype_is_int32(dt))
+                *value = (FmsInt)conduit_node_as_int32(node);
+            else if(conduit_datatype_is_int64(dt))
+                *value = (FmsInt)conduit_node_as_int64(node);
+
+            else if(conduit_datatype_is_uint8(dt))
+                *value = (FmsInt)conduit_node_as_uint8(node);
+            else if(conduit_datatype_is_uint16(dt))
+                *value = (FmsInt)conduit_node_as_uint16(node);
+            else if(conduit_datatype_is_uint32(dt))
+                *value = (FmsInt)conduit_node_as_uint32(node);
+            else if(conduit_datatype_is_uint64(dt))
+                *value = (FmsInt)conduit_node_as_uint64(node);
+
+            /* It should not be these types. */
+            else if(conduit_datatype_is_float(dt))
+                *value = (FmsInt)conduit_node_as_float(node);
+            else if(conduit_datatype_is_double(dt))
+                *value = (FmsInt)conduit_node_as_double(node);
+            else if(conduit_datatype_is_float32(dt))
+                *value = (FmsInt)conduit_node_as_float32(node);
+            else if(conduit_datatype_is_float64(dt))
+                *value = (FmsInt)conduit_node_as_float64(node);
+
+            else if(conduit_datatype_is_empty(dt))
+            {
+                E_RETURN(2);
+            }
+            else if(conduit_datatype_is_object(dt))
+            {
+                E_RETURN(3);
+            }
+            else if(conduit_datatype_is_list(dt))
+            {
+                E_RETURN(4);
+            }
+            else
+            {
+                E_RETURN(5);
+            }
+        }
+        else
+        {
+            E_RETURN(6);
+        }
+    }
+    else
+    {
+        E_RETURN(7);
+    }
+    return 0;
+}
+
 static int
 FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, FmsInt *value)
 {
     conduit_node *node = NULL;
+    int retval = 1;
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
     if(!value) E_RETURN(3);
@@ -1188,20 +1284,9 @@ FmsIOGetIntConduit(FmsIOContext *ctx, const char *path, FmsInt *value)
 
     if((node = conduit_node_fetch(ctx->root, path)) != NULL)
     {
-        const conduit_datatype *dt = conduit_node_dtype(node);
-        if(dt)
-        {
-            if(conduit_datatype_is_number(dt))
-            {
-                *value = (FmsInt)conduit_node_fetch_path_as_int64(ctx->root, path);
-            }
-            else
-            {
-                E_RETURN(5);
-            }
-        }
+        retval = FmsIOConduitNode2FmsInt(node, value);
     }
-    return 0;
+    return retval;
 }
 
 /*int (*get_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n);*/
@@ -1209,7 +1294,7 @@ static int
 FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n)
 {
     const conduit_datatype *dt = NULL;
-    conduit_node *node = NULL, *vnode = NULL;
+    conduit_node *node = NULL, *size_node = NULL, *vnode = NULL;
     char *type_str = NULL;
     void *conduit_data_ptr = NULL;
     if(!ctx) E_RETURN(1);
@@ -1225,18 +1310,19 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
         E_RETURN(7);
 
     /* Arrays are written with subnodes Size, Type, and Values */
-    if(!conduit_node_has_child(node, "Size"))
+    if((size_node = conduit_node_fetch(node, "Size")) == NULL)
         E_RETURN(8);
-    *n = (FmsInt)conduit_node_fetch_path_as_int64(node, "Size");
+    if(FmsIOConduitNode2FmsInt(size_node, n) != 0)
+        E_RETURN(9);
 
     if(!conduit_node_has_child(node, "Type"))
-        E_RETURN(9);
+        E_RETURN(10);
     
     if((type_str = conduit_node_fetch_path_as_char8_str(node, "Type")) == NULL)
-        E_RETURN(10);
+        E_RETURN(11);
 
     if(FmsGetIntTypeFromName(type_str, type))
-        E_RETURN(11);
+        E_RETURN(12);
     
     if(*n == 0)
     {
@@ -1245,10 +1331,10 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
     }
 
     if(!conduit_node_has_child(node, "Values"))
-        E_RETURN(12);
+        E_RETURN(13);
 
     if((vnode = conduit_node_fetch(node, "Values")) == NULL)
-        E_RETURN(13);
+        E_RETURN(14);
 
     dt = conduit_node_dtype(vnode);
     conduit_data_ptr = conduit_node_element_ptr(vnode, 0);
@@ -1269,7 +1355,7 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
         switch(*type) { \
             FOR_EACH_INT_TYPE(CASES) \
             default: \
-                E_RETURN(14); \
+                E_RETURN(15); \
                 break; \
         } \
     } while(0)
@@ -1308,7 +1394,7 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
         COPY_AND_CAST;
     }
     else {
-        E_RETURN(15);
+        E_RETURN(16);
     }
 #undef COPY_AND_CAST
 #undef CASES
@@ -1319,7 +1405,7 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
 static int
 FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n)
 {
-    conduit_node *node = NULL;
+    conduit_node *node = NULL, *size_node = NULL;
     char *type_str = NULL;
     void *conduit_data_ptr = NULL;
     if(!ctx) E_RETURN(1);
@@ -1338,20 +1424,20 @@ FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *t
     if(FmsGetScalarTypeFromName(type_str, type))
         E_RETURN(8);
 
-    
-    if(!conduit_node_has_child(node, "Size"))
+    /* Thought: Arrays in Conduit know their size already. Is this needed? */
+    if((size_node = conduit_node_fetch(node, "Size")) == NULL)
         E_RETURN(9);
+    if(FmsIOConduitNode2FmsInt(size_node, n) != 0)
+        E_RETURN(10);
 
-    *n = (FmsInt)conduit_node_fetch_path_as_int64(node, "Size");
-
-    if(n == 0)
+    if(*n == 0)
     {
         *values = NULL;
         return 0;
     }
 
     if(!conduit_node_has_child(node, "Values"))
-        E_RETURN(10);
+        E_RETURN(11);
 
     conduit_data_ptr = conduit_node_element_ptr(conduit_node_fetch(node, "Values"), 0);
 
@@ -1369,7 +1455,7 @@ FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *t
         FOR_EACH_SCALAR_TYPE(COPY_DATA)
     #undef COPY_DATA
         default:
-            E_RETURN(11);
+            E_RETURN(12);
     }
 
     return 0;
@@ -1504,8 +1590,23 @@ FmsIOEndListItemConduit(FmsIOContext *ctx)
 
 /* TODO: write the other write/read methods*/
 
+static void
+FmsIOConduitInformation(const char *msg, const char *srcfile, int line)
+{
+    printf("Information: %s: %s: %d\n", msg, srcfile, line);
+}
 
+static void
+FmsIOConduitWarning(const char *msg, const char *srcfile, int line)
+{
+    printf("Warning: %s: %s: %d\n", msg, srcfile, line);
+}
 
+static void
+FmsIOConduitError(const char *msg, const char *srcfile, int line)
+{
+    printf("ERROR: \"%s\": \"%s\": %d\n", msg, srcfile, line);
+}
 
 /**
 @brief This function initializes the IO context with function pointers that
@@ -1529,6 +1630,11 @@ FmsIOContextInitializeConduit(FmsIOContext *ctx, const char *protocol)
         ctx->writing = 0;
         /* Store the protocol this way since we do not pass it to the open function */
         ctx->protocol = protocol ? strdup(protocol) : strdup("json");
+
+        /* Install some error handlers for Conduit. */
+        conduit_utils_set_info_handler(FmsIOConduitInformation);
+        conduit_utils_set_warning_handler(FmsIOConduitWarning);
+        conduit_utils_set_error_handler(FmsIOConduitError);
     }
 }
 
