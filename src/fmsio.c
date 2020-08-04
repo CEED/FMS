@@ -988,10 +988,6 @@ FmsIOOpenConduit(FmsIOContext *ctx, const char *filename, const char *mode)
     {
         /* If we're not writing then read it all upfront into ctx->root. */
         conduit_relay_io_load(filename, ctx->protocol, NULL, ctx->root);
-
-#if 1
-        conduit_relay_io_save(ctx->root, "read.yaml", "yaml", NULL);
-#endif
     }
 
     return 0;
