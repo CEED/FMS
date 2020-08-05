@@ -6,20 +6,24 @@ fi
 
 for PROTOCOL in ascii yaml json hdf5; do
     ORDER=1
-    for NAME in one two three ; do
-        # Use number names in the filename so VisIt will not group them.
-        if [[ "$ORDER" == "1" ]] ; then
-            ORDERSTR="one"
-        elif [[ "$ORDER" == "2" ]] ; then
-            ORDERSTR="two"
-        elif [[ "$ORDER" == "3" ]] ; then
-            ORDERSTR="three"
-        fi
+    for ORDERSTR in one two three ; do
         FILENAME="FMS_test_data/domains_${PROTOCOL}_order_${ORDERSTR}.fms"
         FILENAME2="FMS_test_data/domains_${PROTOCOL}_order_${ORDERSTR}.3D"
         echo ./domains $PROTOCOL $ORDER \> $FILENAME2
         ./domains $PROTOCOL $ORDER > $FILENAME2
         mv domains.fms $FILENAME
+        ORDER=$((ORDER+1))
+    done
+done
+
+for PROTOCOL in ascii yaml hdf5; do
+    ORDER=1
+    for ORDERSTR in one two three four; do
+        FILENAME="FMS_test_data/quads_${PROTOCOL}_order_${ORDERSTR}.fms"
+        FILENAME2="FMS_test_data/quads_${PROTOCOL}_order_${ORDERSTR}.3D"
+        echo ./quads $PROTOCOL $ORDER \> $FILENAME2
+        ./quads $PROTOCOL $ORDER > $FILENAME2
+        mv quads.fms $FILENAME
         ORDER=$((ORDER+1))
     done
 done

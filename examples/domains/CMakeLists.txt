@@ -16,3 +16,6 @@
 
 add_executable(domains domains.c)
 target_link_libraries(domains PRIVATE fms)
+
+add_executable(quads quads.c)
+target_link_libraries(quads PRIVATE fms m)

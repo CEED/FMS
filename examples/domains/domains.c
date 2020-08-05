@@ -415,5 +415,7 @@ main(int argc, char *argv[])
     /* Write the data out. */
     FmsIOWrite("domains.fms", protocol, dc);
 
+    free(coord_data);
+
     return 0;
 }
