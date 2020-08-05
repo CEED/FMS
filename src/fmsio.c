@@ -794,7 +794,7 @@ FmsIOGetScalarArray(FmsIOContext *ctx, const char *path, FmsScalarType *type, vo
         // Error reading line
         if(FmsIOReadKeyValue(ctx, k, v))
             E_RETURN(6);
-        
+
         char *ksize = join_keys(path, "Size");
         err = strcmp(k, ksize);
         FREE(ksize);
@@ -1423,7 +1423,7 @@ FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *t
     /* Thought: Arrays in Conduit know their size already. Is this needed? */
     if((size_node = conduit_node_fetch(node, "Size")) == NULL)
         E_RETURN(9);
-    if(FmsIOConduitNode2FmsInt(size_node, n) != 0)
+    if(FmsIOConduitNode2FmsInt(size_node, n))
         E_RETURN(10);
 
     if(*n == 0)
@@ -2921,9 +2921,9 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
     (*io->add_int)(ctx, knc, num_vec_comp);
     FREE(knc);
 
+    /* Write field descriptor */
     if(!fd)
         E_RETURN(3);
-
     const char *fdname = NULL;
     if(FmsFieldDescriptorGetName(fd, &fdname))
         E_RETURN(4);
@@ -2931,24 +2931,24 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, FmsFi
     (*io->add_string)(ctx, kfdname, fdname);
     FREE(kfdname);
 
+    FmsInt ndofs = 0;
+    FmsFieldDescriptorGetNumDofs(fd, &ndofs);
+
+    /* Write data */
+    char *kdata = join_keys(key, "Data");
+    (*io->add_scalar_array)(ctx, kdata, dt, data, num_vec_comp * ndofs);
+    FREE(kdata);
+
+    /* Write metadata */
     FmsMetaData md;
     if(FmsFieldGetMetaData(field, &md))
-        E_RETURN(4);
-    
+        E_RETURN(5);   
     if(md)
     {
         char *kmd = join_keys(key, "MetaData");
         FmsIOWriteFmsMetaData(ctx, io, kmd, md);
         FREE(kmd);
     }
-
-    FmsInt ndofs = 0;
-    FmsFieldDescriptorGetNumDofs(fd, &ndofs);
-
-    char *kdata = join_keys(key, "Data");
-    (*io->add_scalar_array)(ctx, kdata, dt, data, num_vec_comp * ndofs);
-    FREE(kdata);
-
 
     /* NOTES:
         1. What is in the MetaData?
@@ -3678,8 +3678,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc)
     if(strcmp(protocol, "json") == 0 ||
        strcmp(protocol, "yaml") == 0 ||
        strcmp(protocol, "hdf5") == 0 ||
-       strcmp(protocol, "silo") == 0 ||
-       strcmp(protocol, "adios") == 0)
+       strcmp(protocol, "silo") == 0)
     {
         FmsIOContextInitializeConduit(&ctx, protocol);
         FmsIOFunctionsInitializeConduit(&io);
@@ -3729,16 +3728,42 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc)
     FmsIOFunctions io;
 
     if(!filename) E_RETURN(1);
-    if(!protocol) protocol = "ascii";
     if(!dc) E_RETURN(3);
 
 #ifdef FMS_HAVE_CONDUIT
-    /* Conduit has a function to enumerate its protocols that it supports. Use that later. */
+    /* Since we have Conduit, we want to distinguish between a file written
+       using Conduit and one written using the normal ASCII FmsIO routines.
+    */
+    if(protocol == NULL)
+    {
+        unsigned char H[4]={'\0','\0','\0','\0'};
+        FILE *f = fopen(filename, "rb");
+        if(f != NULL)
+        {
+            if(fread(H, sizeof(unsigned char), 4, f) == 4)
+            {
+                if(H[0] == 'F' && H[1] == 'M' && H[2] == 'S' && H[3] == ':')
+                    protocol = "ascii";
+                else if(H[0] == '\n' && H[1] == '{')
+                    protocol = "json";
+                else if(H[0] == '\n' && H[1] == 'F' && H[2] == 'M' && H[3] == 'S')
+                    protocol = "yaml";
+                else if(H[0] == 137 && H[1] == 'H' && H[2] == 'D' && H[3] == 'F')
+                    protocol = "hdf5";
+            }
+            fclose(f);
+        }
+        if(protocol == NULL)
+        {
+            /* We have to guess. */
+            protocol = "ascii";
+        }
+    }
+
     if(strcmp(protocol, "json") == 0 ||
        strcmp(protocol, "yaml") == 0 ||
        strcmp(protocol, "hdf5") == 0 ||
-       strcmp(protocol, "silo") == 0 ||
-       strcmp(protocol, "adios") == 0)
+       strcmp(protocol, "silo") == 0)
     {
         FmsIOContextInitializeConduit(&ctx, protocol);
         FmsIOFunctionsInitializeConduit(&io);
