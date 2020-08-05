@@ -124,14 +124,9 @@ typedef struct
     /* Conduit C-API*/
     conduit_node *root;
 
-#ifdef MEANDERING_THOUGHTS
-    conduit_node *stack[100];
-    int           stack_top;
-#endif
     char *filename;
     char *protocol;
-    int   writing;
-    
+    int   writing;   
 #endif
     FILE *fp;
     FmsInt temp_strings_size;
@@ -145,30 +140,15 @@ typedef struct
     int (*open)(FmsIOContext *ctx, const char *filename, const char *mode);
     int (*close)(FmsIOContext *ctx);
 
-#ifdef MEANDERING_THOUGHTS
-    /* Q: would it be helpful to have some kind of begin/end object and list functions?
-
-      I implemented some of this and then had some second thoughts.
-      Leaving it here for a little while.
-     */
-    int (*begin_list)(FmsIOContext *ctx, const char *path, size_t n);
-    int (*end_list)(FmsIOContext *ctx);
-    int (*begin_list_item)(FmsIOContext *ctx);
-    int (*end_list_item)(FmsIOContext *ctx);
-#endif
-
     int (*add_int)(FmsIOContext *ctx, const char *path, FmsInt value);
     int (*add_int_array)(FmsIOContext *ctx, const char *path, const FmsInt *values, FmsInt n);
     int (*add_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType type, const void *values, FmsInt n);
     int (*add_float)(FmsIOContext *ctx, const char *path, float value);
-    /* int (*add_float_array)(FmsIOContext *ctx, const char *path, const float *values, FmsInt n); */
+
     int (*add_double)(FmsIOContext *ctx, const char *path, double value);
-    /* int (*add_double_array)(FmsIOContext *ctx, const char *path, const double *value, FmsInt n); */
     int (*add_scalar_array)(FmsIOContext *ctx, const char *path, FmsScalarType type, const void *data, FmsInt n);
     int (*add_string)(FmsIOContext *ctx, const char *path, const char *value);
-    int (*add_string_array)(FmsIOContext *ctx, const char *path, const char **value, FmsInt n);
 
-    /* TODO: functions for reading path+value*/
     int (*has_path)(FmsIOContext *ctx, const char *path);
     int (*get_int)(FmsIOContext *ctx, const char *path, FmsInt *value);
     int (*get_typed_int_array)(FmsIOContext *ctx, const char *path, FmsIntType *type, void **values, FmsInt *n);
@@ -176,9 +156,6 @@ typedef struct
     int (*get_double)(FmsIOContext *ctx, const char *path, double *value);
     int (*get_scalar_array)(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n);
     int (*get_string)(FmsIOContext *ctx, const char *path, const char **value);
-    int (*get_string_array)(FmsIOContext *ctx, const char *path, const char ***value, FmsInt *n);
-    /*...*/
-
 } FmsIOFunctions;
 
 // Struct used for building metadata
@@ -959,14 +936,6 @@ FmsIOFunctionsInitialize(FmsIOFunctions *obj)
         obj->get_typed_int_array = FmsIOGetTypedIntArray;
         obj->get_scalar_array = FmsIOGetScalarArray;
         obj->get_string = FmsIOGetString;
-        obj->get_string_array = FmsIOGetStringArray;
-#ifdef MEANDERING_THOUGHTS
-        obj->begin_list = FmsIOBeginList;
-        obj->end_list = FmsIOEndList;
-        obj->begin_list_item = FmsIOBeginListItem;
-        obj->end_list_item = FmsIOEndListItem;
-#endif
-        /*TODO: fill in rest. */
     }
 }
 
@@ -1483,109 +1452,6 @@ FmsIOGetStringConduit(FmsIOContext *ctx, const char *path, const char **value)
     return 0;
 }
 
-/*  int (*get_string_array)(FmsIOContext *ctx, const char *path, char ***value, FmsInt *n); */
-static int
-FmsIOGetStringArrayConduit(FmsIOContext *ctx, const char *path, const char ***values, FmsInt *n)
-{
-    /* TODO: */
-    E_RETURN(1);
-}
-
-#ifdef MEANDERING_THOUGHTS
-/**
-@brief Push the conduit node to the top of the stack, making it current.
-@param ctx  The context.
-@param node The conduit node to push onto the stack.
-*/
-static void
-FMSIOContextPush(FmsIOContext *ctx, conduit_node *node)
-{
-    if(ctx->stack_top+1 < 100)
-    {
-        ctx->stack_top++;
-        ctx->stack[ctx->stack_top] = node;
-    }
-}
-
-/**
-@brief Pop the top Conduit node off the stack, making the one "under" it current.
-@param ctx  The context.
-*/
-static void
-FMSIOContextPop(FmsIOContext *ctx)
-{
-    if(ctx->stack_top > -1)
-    {
-        ctx->stack[ctx->stack_top] = NULL;
-        ctx->stack_top--;
-    }
-}
-
-/**
-@brief Get the current Conduit node on the top of the stack. Keys are made relative 
-       to this node. This means that except for the root node, we should use relative
-       paths.
-@param ctx  The context.
-@return Return the current Conduit node in the context.
-*/
-static conduit_node *
-FmsIOContextCurrent(FmsIOContext *ctx)
-{
-    conduit_node *current = ctx->root;
-    if(ctx->stack_top > -1)
-        current = ctx->stack[ctx->stack_top];
-    return current;
-}
-
-static int
-FmsIOBeginListConduit(FmsIOContext *ctx, const char *path, size_t n)
-{
-    conduit_node *node = NULL;
-    if(ctx) E_RETURN(1);
-    if(path) E_RETURN(2);
-    if(value) E_RETURN(3);
-
-    /* Get a new node relative to the current, creating it if necessary. */
-    if((node = conduit_node_fetch(FMSIOContextCurrent(ctx), path)) != NULL)
-    {
-        /* Make the new node the current node. */
-        FmsIOContextPush(ctx, node);
-        conduit_node *conduit_node_append(conduit_node *cnode);
-    }
-}
-
-static int
-FmsIOEndListConduit(FmsIOContext *ctx)
-{
-    if(ctx) E_RETURN(1);
-    FmsIOContextPop(ctx);
-    return 0;
-}
-
-static int
-FmsIOBeginListItemConduit(FmsIOContext *ctx)
-{
-    conduit_node *node = NULL;
-    if(ctx) E_RETURN(1);
-    if(path) E_RETURN(2);
-    if(value) E_RETURN(3);
-
-    /* Get a new node relative to the current*/
-    node = conduit_node_append(conduit_node_create());
-    FMSIOContextPush(ctx, node);
-}
-
-static int
-FmsIOEndListItemConduit(FmsIOContext *ctx)
-{
-    if(ctx) E_RETURN(1);
-    FmsIOContextPop(ctx);
-    return 0;
-}
-#endif
-
-/* TODO: write the other write/read methods*/
-
 static void
 FmsIOConduitInformation(const char *msg, const char *srcfile, int line)
 {
@@ -1615,11 +1481,6 @@ FmsIOContextInitializeConduit(FmsIOContext *ctx, const char *protocol)
     if(ctx)
     {
         int i;
-#ifdef MEANDERING_THOUGHTS
-        for(i = 0; i < 100; ++i)
-            ctx->stack[i] = NULL;
-        ctx->stack_top = -1;
-#endif
 
         ctx->filename = NULL;
         ctx->root = NULL;
@@ -1659,14 +1520,6 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj)
         obj->get_typed_int_array = FmsIOGetTypedIntArrayConduit;
         obj->get_scalar_array = FmsIOGetScalarArrayConduit;
         obj->get_string = FmsIOGetStringConduit;
-        obj->get_string_array = FmsIOGetStringArrayConduit;
-#ifdef MEANDERING_THOUGHTS
-        obj->begin_list = FmsIOBeginListConduit;
-        obj->end_list = FmsIOEndListConduit;
-        obj->begin_list_item = FmsIOBeginListItemConduit;
-        obj->end_list_item = FmsIOEndListItemConduit;
-#endif
-        /*TODO: fill in rest. */
     }
 }
 
