@@ -439,7 +439,7 @@ append_coord_dofs_cell(int order, double *dest, const int *dims,
             v6 = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i;
             v7 = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
 
-            /* Make interior points by blending the quad vertices */
+            /* Make interior points by blending the hex vertices */
             for(kk = 1; kk < order; ++kk)
             for(jj = 1; jj < order; ++jj)
             for(ii = 1; ii < order; ++ii)
@@ -469,8 +469,7 @@ append_coord_dofs_cell(int order, double *dest, const int *dims,
 }
 
 /**
-Makes a radial scalar raised to a power.
-@note coords are the order 3 coordinates.
+Makes a radial scalar.
 */
 void
 add_radial_scalar(FmsDataCollection dc, FmsComponent volume, 
