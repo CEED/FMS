@@ -19,3 +19,6 @@ target_link_libraries(domains PRIVATE fms)
 
 add_executable(quads quads.c)
 target_link_libraries(quads PRIVATE fms m)
+
+add_executable(hexes hexes.c)
+target_link_libraries(hexes PRIVATE fms m)

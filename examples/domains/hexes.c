@@ -21,122 +21,9 @@
 #include <stdio.h>
 #include <math.h>
 
-/* Adds coordinate dofs at vertices */
-double *
-append_coords_vert(double *ptr, const double *coords, int nverts)
-{
-    int i;
-    for(i = 0; i < nverts; i++)
-    {
-        *ptr++ = coords[2*i];
-        *ptr++ = coords[2*i+1];
-    }
-    return ptr;
-}
+#define DEBUG_PRINT 1
 
-/* Adds coordinate dofs along edges */
-double *
-append_coords_edge(int order, double *ptr, const double *coords, 
-    const int *edges, int nedges, double travel)
-{
-    int i, j, v0, v1;
-    double t, xoffset, yoffset, pt[2];
-
-    if(order > 1)
-    {
-        for(i = 0; i < nedges; ++i)
-        {
-            /* Get the i'th edge so we know its vertices. */
-            v0 = edges[2*i];
-            v1 = edges[2*i+1];
-
-            for(j = 0; j < order-1; ++j)
-            {
-                /* Figure out how much to perturb the point. */
-                switch((i+j) % 8)
-                {
-                case 0: xoffset = -travel; yoffset = 0;       break;
-                case 1: xoffset = -travel; yoffset = -travel; break;
-                case 2: xoffset = 0.;      yoffset = -travel; break;
-                case 3: xoffset = travel;  yoffset = -travel; break;
-                case 4: xoffset = travel;  yoffset = 0;       break;
-                case 5: xoffset = travel;  yoffset = travel;  break;
-                case 6: xoffset = 0;       yoffset = travel;  break;
-                case 7: xoffset = -travel; yoffset = travel;  break;
-                }
-
-                t = ((double)(j+1)) / ((double)order);
-
-                /* Compute a point along the edge and perturb it. */
-                pt[0] = ((t) * coords[v0*2+0]) + ((1.-t) * coords[v1*2+0]) + xoffset;
-                pt[1] = ((t) * coords[v0*2+1]) + ((1.-t) * coords[v1*2+1]) + yoffset;
-
-                *ptr++ = pt[0];
-                *ptr++ = pt[1];
-            }
-        }
-    }
-
-    return ptr;
-}
-
-/* Adds coordinate dofs on quad faces */
-double *
-append_coords_face(int order, double *ptr, const double *coords,
-    const int *edges, const int *quads, int nquads, double travel)
-{
-    int i,j,edge,v0,v1;
-    double pt[2], xoffset, yoffset;
-    if(order >= 2)
-    {
-        for(i = 0; i < nquads; ++i)
-        {
-            /* NOTE: we assume edges point the same way. */
-            int e0 = quads[i*4+0];
-            int e2 = quads[i*4+2];
-
-            /* 3012 seems to be the ordering to get interior dofs 
-               in the right order. */
-            int v0 = edges[e0*2+1];
-            int v1 = edges[e0*2+0];
-            int v2 = edges[e2*2+0];
-            int v3 = edges[e2*2+1];
-
-            /* Make interior points by blending the quad vertices */
-            for(int jj = 1; jj < order; ++jj)
-            for(int ii = 1; ii < order; ++ii)
-            {
-                float r = ((float)ii)/((float)order);
-                float s = ((float)jj)/((float)order);
-
-                pt[0] = (1.-r)*(1.-s)*coords[v0*2+0] + 
-                        r     *(1.-s)*coords[v1*2+0] + 
-                        r     *s     *coords[v2*2+0] + 
-                        (1.-r)*s     *coords[v3*2+0];
-                pt[1] = (1.-r)*(1.-s)*coords[v0*2+1] + 
-                        r     *(1.-s)*coords[v1*2+1] + 
-                        r     *s     *coords[v2*2+1] + 
-                        (1.-r)*s     *coords[v3*2+1];
-
-                switch((i+ii+jj)%4)
-                {
-                case 0: xoffset = -travel; yoffset = 0.;      break;
-                case 1: xoffset = 0.;      yoffset = -travel; break;
-                case 2: xoffset = travel;  yoffset = 0.;      break;
-                case 3: xoffset = 0.;      yoffset = travel;  break;
-                }
-
-                /* perturb the point. */
-                pt[0] += xoffset;
-                pt[1] += yoffset;
-
-                *ptr++ = pt[0];
-                *ptr++ = pt[1];
-            }
-        }
-    }
-    return ptr;
-}
+#define ADD_CELLS 1
 
 /**
 Determines the number of dofs on hex cells.
@@ -146,114 +33,6 @@ int dofs_for_order(int order, int nverts, int nedges, int nfaces, int ncells)
     int O1 = order-1;
     return nverts + O1*nedges + O1*O1*nfaces + O1*O1*O1*ncells;
 }
-
-#if 0
-/**
-Makes a radial scalar raised to a power.
-@note coords are the order 3 coordinates.
-*/
-void
-add_radial_scalar(FmsDataCollection dc, FmsComponent surface, 
-    const char *name, const double *gc, int order, int nverts, int nedges, int nquads)
-{
-    int i, ndofs;
-    float *data;
-    double *coords, *cptr, x, y;
-    char fdname[100];
-
-    /* Create a field descriptor for the coordinates that live on "surface". */
-    sprintf(fdname, "%s descriptor", name);
-    FmsFieldDescriptor fd;
-    FmsDataCollectionAddFieldDescriptor(dc, fdname, &fd);
-    FmsFieldDescriptorSetComponent(fd, surface);
-    FmsFieldDescriptorSetFixedOrder(fd, FMS_CONTINUOUS,
-                                    FMS_NODAL_GAUSS_CLOSED, order);
-
-    /* First, make coordinates of the target order. */
-    ndofs = dofs_for_order(order, nverts, nedges, nquads);
-    coords = (double *)malloc(ndofs * sizeof(double)*2);
-    cptr = coords;
-    cptr = append_coords_vert(cptr, gc, nverts);
-    cptr = append_coords_edge(order, cptr, gc, edge_vert, nedges, 0.);
-    cptr = append_coords_face(order, cptr, gc, edge_vert, quad_edge, nquads, 0.);
-
-    /* Make the radial data. */
-    data = (float *)malloc(ndofs * sizeof(float));
-    for(i = 0; i < ndofs; ++i)
-    {
-        x = coords[i*2];
-        y = coords[i*2+1];
-        data[i] = (float)sqrt(x*x + y*y);
-    }
-
-#if 0
-    /* Write coordinate dofs as Point3D so we can plot them. */
-    char tmp[100];
-    sprintf(tmp, "%s.3D", name);
-    FILE *fp = fopen(tmp, "wt");
-    fprintf(fp, "X Y Z dof\n");
-    for(i = 0; i < ndofs; ++i)
-        fprintf(fp, "%lg %lg 0. %f\n", coords[i*2],coords[i*2+1], data[i]);
-    fclose(fp);
-#endif
-
-    /* Add the coordinates to the data collection. */
-    FmsField f;
-    FmsDataCollectionAddField(dc, name, &f);
-    FmsFieldSet(f, fd, 1, FMS_BY_VDIM, FMS_FLOAT, data);
-
-    /* Add some field metadata. (optional) */
-    FmsMetaData mdata;
-    FmsFieldAttachMetaData(f, &mdata);
-    FmsMetaDataSetString(mdata, "units", "cm");
-
-    free(data);
-    free(coords);
-}
-
-void
-add_doforder_scalar(FmsDataCollection dc, FmsComponent surface, 
-    const char *name, int nverts, int nedges, int nquads)
-{
-    int i, order = 3, ndofs, nedge_data, nface_data;
-    float *data, *ptr;
-    double x, y;
-    char fdname[100];
-
-    /* Create a field descriptor for the coordinates that live on "surface". */
-    sprintf(fdname, "%s descriptor", name);
-    FmsFieldDescriptor fd;
-    FmsDataCollectionAddFieldDescriptor(dc, fdname, &fd);
-    FmsFieldDescriptorSetComponent(fd, surface);
-    FmsFieldDescriptorSetFixedOrder(fd, FMS_CONTINUOUS,
-                                    FMS_NODAL_GAUSS_CLOSED, order);
-
-    /* Make the data. */
-    nedge_data = (order-1)*nedges;
-    nface_data = (order-1)*(order-1)*nquads;
-    ndofs = dofs_for_order(order, nverts, nedges, nquads);
-    data = (float *)malloc(ndofs * sizeof(float));
-    ptr = data;
-    for(i = 0; i < nverts; i++)
-        *ptr++ = 1.f;
-    for(i = 0; i < nedge_data; i++)
-        *ptr++ = 2.f;
-    for(i = 0; i < nface_data; i++)
-        *ptr++ = 3.f;
-
-    /* Add the coordinates to the data collection. */
-    FmsField f;
-    FmsDataCollectionAddField(dc, name, &f);
-    FmsFieldSet(f, fd, 1, FMS_BY_VDIM, FMS_FLOAT, data);
-
-    /* Add some field metadata. (optional) */
-    FmsMetaData mdata;
-    FmsFieldAttachMetaData(f, &mdata);
-    FmsMetaDataSetString(mdata, "units", "dof order");
-
-    free(data);
-}
-#endif
 
 double *
 compute_vertices(const int *dims, int *nverts)
@@ -342,7 +121,7 @@ compute_edges(const int *dims, int *nedges)
             *eptr++ = k1nxy_plus_jnx + i;
         }
     }
-#if 1
+#ifdef DEBUG_PRINT
     for(i = 0; i < *nedges; i++)
         printf("edge %d: %d %d\n", i, e[2*i], e[2*i+1]);
 #endif
@@ -371,27 +150,6 @@ compute_faces(const int *dims, int *nfaces)
     int *faces = (int *)malloc(*nfaces * sizeof(int)*4);
     int *f = faces;
 
-/*
-    For FMS_HEXAHEDRON, the faces (sides), "ABCDEF", the edges, "abcdefghijkl"
-    and the vertices, "01234567", are ordered as follows:
-
-              7--g--6
-             /|    /|
-            / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
-           h  |  f  |   bottom   top      front    back     left     right
-          /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
-         /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
-        4--e--5   /     b  A  d  h  B  f  i  C  j  k  D  l  l  E  i  j  F  k
-        |  d  |  b      |     |  |     |  |     |  |     |  |     |  |     |
-        i /   j /       1--a--0  4--e--5  0--a--1  2--c--3  3--d--0  1--b--2
-        |/    |/
-        0--a--1
-
-    For example, vertex "0" has coordinates (x,y,z)=(0,0,0), vertex "6" has
-    coordinates (1,1,1), etc.
-*/
-
-
     /* back/front faces */
     for(k = 0; k < dims[2]; k++)
     for(j = 0; j < dims[1]-1; j++)
@@ -413,7 +171,7 @@ compute_faces(const int *dims, int *nfaces)
         B = E1 + k*dims[0]*(dims[1]-1)    +j*dims[0]    + i + 1;       
 
         printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-#if 1
+
         if(k == 0)
         {
             /* ADCB so normal faces out. */
@@ -423,7 +181,6 @@ compute_faces(const int *dims, int *nfaces)
             *f++ = B;
         }
         else
-#endif
         {
             /* ABCD */
             *f++ = A;
@@ -453,17 +210,8 @@ compute_faces(const int *dims, int *nfaces)
         B = E1+E2 + k*dims[0]*dims[1]    +j*dims[0] + i;       
 
         printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-#if 0
-        if(j == 0)
-        {
-            /* ADCB so normal faces out. */
-            *f++ = A;
-            *f++ = D;
-            *f++ = C;
-            *f++ = B;
-        }
-        else
-#endif
+
+        /* NOTE: I removed the reversal case. */
         {
             /* ABCD */
             *f++ = A;
@@ -497,7 +245,7 @@ compute_faces(const int *dims, int *nfaces)
         B = E1 + k*dims[0]*(dims[1]-1)      +j*dims[0] + i;       
 
         printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-#if 1
+
         if(i == 0)
         {
             /* ADCB so normal faces out. */
@@ -507,7 +255,6 @@ compute_faces(const int *dims, int *nfaces)
             *f++ = B;
         }
         else
-#endif
         {
             /* ABCD */
             *f++ = A;
@@ -517,7 +264,7 @@ compute_faces(const int *dims, int *nfaces)
         }
     }
 
-#if 1
+#ifdef DEBUG_PRINT
     printf("nfaces=%d\n", *nfaces);
 
     for(i = 0; i < *nfaces; i++)
@@ -550,44 +297,15 @@ compute_cells(const int *dims, int *ncells)
         int f4 = F1+F2 + k*dims[0]*(dims[1]-1) + j*dims[0] + i;      /* left */
         int f5 = F1+F2 + k*dims[0]*(dims[1]-1) + j*dims[0] + i+1;    /* right */
 
-/*
-    For FMS_HEXAHEDRON, the faces (sides), "ABCDEF", the edges, "abcdefghijkl"
-    and the vertices, "01234567", are ordered as follows:
-
-              7--g--6
-             /|    /|
-            / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
-           h  |  f  |   bottom   top      front    back     left     right
-          /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
-         /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
-        4--e--5   /     b  A  d  h  B  f  i  C  j  k  D  l  l  E  i  j  F  k
-        |  d  |  b      |     |  |     |  |     |  |     |  |     |  |     |
-        i /   j /       1--a--0  4--e--5  0--a--1  2--c--3  3--d--0  1--b--2
-        |/    |/
-        0--a--1
-
-    For example, vertex "0" has coordinates (x,y,z)=(0,0,0), vertex "6" has
-    coordinates (1,1,1), etc.
-*/
-
+        /* This ordering works (see fms.h) */
         *cptr++ = f0;
         *cptr++ = f1;
-        *cptr++ = f3;
-        *cptr++ = f2;
-        *cptr++ = f4;
         *cptr++ = f5;
-
-#if 0
-/*This is the MFEM face ordering and it does not work. */
-        *cptr++ = f0;
-        *cptr++ = f2;
-        *cptr++ = f5;
-        *cptr++ = f3;
         *cptr++ = f4;
-        *cptr++ = f1;
-#endif
+        *cptr++ = f2;
+        *cptr++ = f3;
     }
-#if 1
+#ifdef DEBUG_PRINT
     for(i = 0; i < *ncells; i++)
         printf("cell %d: %d %d %d %d %d %d\n", i,
            cells[6*i+0],
@@ -603,32 +321,264 @@ compute_cells(const int *dims, int *ncells)
 }
 
 double *
-append_coord_dofs_verts(double *dest, const double *src, int nverts, int component)
+append_coord_dofs_verts(double *dest, const double *verts, int nverts, int component)
 {
     int i;
     for(i = 0; i < nverts; ++i)
-        dest[i] = src[3*i + component];
+        dest[i] = verts[3*i + component];
     return dest + nverts;
+}
+
+/* Adds coordinate dofs along edges */
+double *
+append_coord_dofs_edge(int order, double *dest, const double *verts, 
+    const int *edges, int nedges, double travel, int component)
+{
+    int i, j, v0, v1;
+    double t, value, *ptr = dest;
+
+    if(order > 1)
+    {
+        for(i = 0; i < nedges; ++i)
+        {
+            /* Get the i'th edge so we know its vertices. */
+            v0 = edges[2*i];
+            v1 = edges[2*i+1];
+
+            for(j = 0; j < order-1; ++j)
+            {
+                t = ((double)(j+1)) / ((double)order);
+
+                /* Compute a point along the edge and perturb it. */
+                value = ((t) * verts[v0*3+component]) + ((1.-t) * verts[v1*3+component]);
+
+                /* Perturb the point */
+                value += travel * cos(drand48() * 2 * M_PI);
+
+                *ptr++ = value;
+            }
+        }
+    }
+
+    return ptr;
+}
+
+/* Adds coordinate dofs on quad faces */
+double *
+append_coord_dofs_face(int order, double *dest, const double *verts,
+    const int *edges, const int *faces, int nfaces, double travel,
+    int component)
+{
+    int i,j,edge,v0,v1;
+    double value, *ptr = dest;
+    if(order >= 2)
+    {
+        for(i = 0; i < nfaces; ++i)
+        {
+            /* NOTE: we assume edges point the same way. */
+            int e0 = faces[i*4+0];
+            int e2 = faces[i*4+2];
+
+            /* 3012 seems to be the ordering to get interior dofs 
+               in the right order. */
+            int v0 = edges[e0*2+1];
+            int v1 = edges[e0*2+0];
+            int v2 = edges[e2*2+0];
+            int v3 = edges[e2*2+1];
+
+            /* Make interior points by blending the quad vertices */
+            for(int jj = 1; jj < order; ++jj)
+            for(int ii = 1; ii < order; ++ii)
+            {
+                double r = ((double)ii)/((double)order);
+                double s = ((double)jj)/((double)order);
+
+                value = (1.-r)*(1.-s)*verts[v0*3+component] + 
+                        r     *(1.-s)*verts[v1*3+component] + 
+                        r     *s     *verts[v2*3+component] + 
+                        (1.-r)*s     *verts[v3*3+component];
+
+                /* Perturb the point */
+                value += travel * cos(drand48() * 2 * M_PI);
+
+                *ptr++ = value;
+            }
+        }
+    }
+    return ptr;
+}
+
+/* Adds coordinate dofs on cell interiors */
+double *
+append_coord_dofs_cell(int order, double *dest, const int *dims,
+    const double *verts, double travel, int component)
+{
+    int i,j,k,ii,jj,kk,edge,v0,v1;
+    double r,s,t,value, *ptr = dest;
+#ifdef ADD_CELLS
+    if(order >= 2)
+    {
+        /* NOTE: just do cells this way rather than tracing down through
+                 faces/edges to get to vertices. */
+        for(k = 0; k < dims[2]-1; ++k)
+        for(j = 0; j < dims[1]-1; ++j)
+        for(i = 0; i < dims[0]-1; ++i)
+        {
+            int v0,v1,v2,v3,v4,v5,v6,v7;
+            /* NOTE: it does not seem like we are emitting the interior dofs
+               in the "right" order for FMS. It does make the field more
+               interesting though.
+             */
+
+            v0 = k*dims[0]*dims[1] + j*dims[0] + i;
+            v1 = k*dims[0]*dims[1] + j*dims[0] + i+1;
+            v2 = k*dims[0]*dims[1] + (j+1)*dims[0] + i;
+            v3 = k*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
+            v4 = (k+1)*dims[0]*dims[1] + j*dims[0] + i;
+            v5 = (k+1)*dims[0]*dims[1] + j*dims[0] + i+1;
+            v6 = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i;
+            v7 = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
+
+            /* Make interior points by blending the quad vertices */
+            for(kk = 1; kk < order; ++kk)
+            for(jj = 1; jj < order; ++jj)
+            for(ii = 1; ii < order; ++ii)
+            {
+                r = ((double)ii)/((double)order);
+                s = ((double)jj)/((double)order);
+                t = ((double)kk)/((double)order);
+
+                value = (1.-r)*(1.-s)*(1.-t)*verts[v0*3+component] + 
+                        r     *(1.-s)*(1.-t)*verts[v1*3+component] + 
+                        (1.-r)*s     *(1.-t)*verts[v2*3+component] + 
+                        r     *s     *(1.-t)*verts[v3*3+component] +
+                        (1.-r)*(1.-s)*t     *verts[v4*3+component] + 
+                        r     *(1.-s)*t     *verts[v5*3+component] + 
+                        (1.-r)*s     *t     *verts[v6*3+component] + 
+                        r     *s     *t     *verts[v7*3+component];
+
+                /* Perturb the point */
+                value += travel * cos(drand48() * 2 * M_PI);
+
+                *ptr++ = value;
+            }
+        }
+    }
+#endif
+    return ptr;
+}
+
+/**
+Makes a radial scalar raised to a power.
+@note coords are the order 3 coordinates.
+*/
+void
+add_radial_scalar(FmsDataCollection dc, FmsComponent volume, 
+    const char *name, int order, const int *dims,
+    const double *verts, int nverts,
+    const int *edges, int nedges, 
+    const int *faces, int nfaces,
+    int ncells)
+{
+    int i, ndofs;
+    double *data, *coords, *cptr, *x, *y, *z;
+    char fdname[100];
+
+    /* Create a field descriptor for the coordinates that live on "surface". */
+    sprintf(fdname, "%s descriptor", name);
+    FmsFieldDescriptor fd;
+    FmsDataCollectionAddFieldDescriptor(dc, fdname, &fd);
+    FmsFieldDescriptorSetComponent(fd, volume);
+    FmsFieldDescriptorSetFixedOrder(fd, FMS_CONTINUOUS,
+                                    FMS_NODAL_GAUSS_CLOSED, order);
+
+    /* First, make coordinates of the target order. */
+    ndofs = dofs_for_order(order, nverts, nedges, nfaces, ncells);
+
+    /* Make the coordinate data. Make it BYNODE xxxx...yyyy...zzzz... */
+    coords = (double *)malloc(ndofs * sizeof(double)*3);
+    x = coords;
+    y = coords + ndofs;
+    z = coords + 2*ndofs;
+
+    /* Store coordinate dofs by node. */
+    x = append_coord_dofs_verts(x, verts, nverts, 0);
+    x = append_coord_dofs_edge(order, x, verts, edges, nedges, 0., 0);
+    x = append_coord_dofs_face(order, x, verts, edges, faces, nfaces, 0., 0);
+    x = append_coord_dofs_cell(order, x, dims, verts, 0., 0);
+
+    y = append_coord_dofs_verts(y, verts, nverts, 1);
+    y = append_coord_dofs_edge(order, y, verts, edges, nedges, 0., 1);
+    y = append_coord_dofs_face(order, y, verts, edges, faces, nfaces, 0., 1);
+    y = append_coord_dofs_cell(order, y, dims, verts, 0., 1);
+
+    z = append_coord_dofs_verts(z, verts, nverts, 2);
+    z = append_coord_dofs_edge(order, z, verts, edges, nedges, 0., 2);
+    z = append_coord_dofs_face(order, z, verts, edges, faces, nfaces, 0., 2);
+    z = append_coord_dofs_cell(order, z, dims, verts, 0., 2);
+
+    /* Make the radial data. */
+    x = coords;
+    y = coords + ndofs;
+    z = coords + 2*ndofs;
+    data = (double *)malloc(ndofs * sizeof(double));
+    for(i = 0; i < ndofs; ++i)
+    {
+        data[i] = sqrt(x[i]*x[i] + y[i]*y[i] + z[i]*z[i]);
+    }
+
+#if 0
+    /* Write coordinate dofs as Point3D so we can plot them. */
+    char tmp[100];
+    sprintf(tmp, "%s.3D", name);
+    FILE *fp = fopen(tmp, "wt");
+    fprintf(fp, "X Y Z dof\n");
+    for(i = 0; i < ndofs; ++i)
+        fprintf(fp, "%lg %lg 0. %f\n", coords[i*2],coords[i*2+1], data[i]);
+    fclose(fp);
+#endif
+
+    /* Add the coordinates to the data collection. */
+    FmsField f;
+    FmsDataCollectionAddField(dc, name, &f);
+    FmsFieldSet(f, fd, 1, FMS_BY_VDIM, FMS_DOUBLE, data);
+
+    /* Add some field metadata. (optional) */
+    FmsMetaData mdata;
+    FmsFieldAttachMetaData(f, &mdata);
+    FmsMetaDataSetString(mdata, "units", "cm");
+
+    free(data);
+    free(coords);
 }
 
 int
 main(int argc, char *argv[])
 {
-    int i, nverts, nedges, nfaces, ncells;
+    int i, nverts, nedges, nfaces, ncells = 0;
     int *edges, *faces, *cells;
     double *verts;
     const char *protocol = "ascii";
-    int dims[3] = {6,6,2};
-
+    int dims[3] = {3,3,3};
     FmsInt order = 1;
+
+    /* Handle some command line args. */
     if(argc > 1)
     {
         protocol = argv[1];
         if(argc > 2)
         {
             order = atoi(argv[2]);
-            if(order < 1 || order > 4)
+            if(order < 1)
                 return -1;
+            if(argc >= 6)
+            {
+                dims[0] = atoi(argv[3]);
+                dims[1] = atoi(argv[4]);
+                dims[2] = atoi(argv[5]);
+                if(dims[0] < 2 || dims[1] < 2 || dims[2] < 2)
+                    return -2;
+            }
         }
     }
 
@@ -637,8 +587,9 @@ main(int argc, char *argv[])
 
     edges = compute_edges(dims, &nedges);
     faces = compute_faces(dims, &nfaces);
-    cells = compute_cells(dims, &ncells);   
-
+#ifdef ADD_CELLS
+    cells = compute_cells(dims, &ncells);
+#endif
     /* Create a mesh */
     FmsMesh mesh;
     FmsMeshConstruct(&mesh);
@@ -657,7 +608,7 @@ main(int argc, char *argv[])
     /* Set the faces */
     FmsDomainSetNumEntities(domains[0], FMS_QUADRILATERAL, FMS_INT32, nfaces);
     FmsDomainAddEntities(domains[0], FMS_QUADRILATERAL, NULL, FMS_INT32, faces, nfaces);
-#if 1
+#ifdef ADD_CELLS
     /* Set the cells */
     FmsDomainSetNumEntities(domains[0], FMS_HEXAHEDRON, FMS_INT32, ncells);
     FmsDomainAddEntities(domains[0], FMS_HEXAHEDRON, NULL, FMS_INT32, cells, ncells);
@@ -683,29 +634,27 @@ main(int argc, char *argv[])
 
     /* Make the coordinate data. Make it BYNODE xxxx...yyyy...zzzz... */
     int ndofs = dofs_for_order(order, nverts, nedges, nfaces, ncells);
-
-printf("nverts = %d\n", nverts);
-printf("nedges = %d\n", nedges);
-printf("nfaces = %d\n", nfaces);
-printf("ncells = %d\n", ncells);
-
     double *coord_data = (double *)malloc(ndofs * sizeof(double)*3);
     double *x = coord_data;
     double *y = coord_data + ndofs;
     double *z = coord_data + 2*ndofs;
 
-    /* Store order 1 coordinate dofs. */
+    /* Store coordinate dofs by node. */
     x = append_coord_dofs_verts(x, verts, nverts, 0);
-    y = append_coord_dofs_verts(y, verts, nverts, 1);
-    z = append_coord_dofs_verts(z, verts, nverts, 2);
+    x = append_coord_dofs_edge(order, x, verts, edges, nedges, 0.02, 0);
+    x = append_coord_dofs_face(order, x, verts, edges, faces, nfaces, 0.02, 0);
+    x = append_coord_dofs_cell(order, x, dims, verts, 0.02, 0);
 
-#if 0
-    double *cptr = coord_data;
-    cptr = append_coords_vert(cptr, global_coords, nverts);
-    cptr = append_coords_edge(order, cptr, global_coords, edge_vert, nedges, 0.02);
-    cptr = append_coords_face(order, cptr, global_coords, edge_vert, quad_edge, nquads, 0.01);
-    cptr = append_coords_cell(order, cptr, global_coords, edge_vert, quad_edge, nquads, 0.01);
-#endif
+    y = append_coord_dofs_verts(y, verts, nverts, 1);
+    y = append_coord_dofs_edge(order, y, verts, edges, nedges, 0.02, 1);
+    y = append_coord_dofs_face(order, y, verts, edges, faces, nfaces, 0.02, 1);
+    y = append_coord_dofs_cell(order, y, dims, verts, 0.02, 1);
+
+    z = append_coord_dofs_verts(z, verts, nverts, 2);
+    z = append_coord_dofs_edge(order, z, verts, edges, nedges, 0.02, 2);
+    z = append_coord_dofs_face(order, z, verts, edges, faces, nfaces, 0.02, 2);
+    z = append_coord_dofs_cell(order, z, dims, verts, 0.02, 2);
+
     /* Add the coordinates to the data collection. */
     FmsField coords;
     FmsDataCollectionAddField(dc, "coords", &coords);
@@ -719,16 +668,12 @@ printf("ncells = %d\n", ncells);
     /* Set the coordinates for the component. */
     FmsComponentSetCoordinates(volume, coords);
 
-#if 0
     /* Add some scalars based on different orders of coordinates. */
-    add_radial_scalar(dc, surface, "r1", global_coords, 1, nverts, nedges, nquads);
-    add_radial_scalar(dc, surface, "r2", global_coords, 2, nverts, nedges, nquads);
-    add_radial_scalar(dc, surface, "r3", global_coords, 3, nverts, nedges, nquads);
-    add_radial_scalar(dc, surface, "r4", global_coords, 4, nverts, nedges, nquads);
+    add_radial_scalar(dc, volume, "r1", 1, dims, verts, nverts, edges, nedges, faces, nfaces, ncells);
+    add_radial_scalar(dc, volume, "r2", 2, dims, verts, nverts, edges, nedges, faces, nfaces, ncells);
+    add_radial_scalar(dc, volume, "r3", 3, dims, verts, nverts, edges, nedges, faces, nfaces, ncells);
 
-    /* Add an order 3 scalar that includes the dof order. */
-    add_doforder_scalar(dc, surface, "doforder", nverts, nedges, nquads);
-#endif
+    /* How about a discontinuous scalar?...*/
 
     /* Add some metadata. (optional) */
     FmsMetaData mdata;
@@ -750,6 +695,7 @@ printf("ncells = %d\n", ncells);
         printf("%lg %lg %lg %d\n", coord_data[i],coord_data[ndofs+i], coord_data[2*ndofs+i], i);
 
     free(coord_data);
+    free(verts);
 
     return 0;
 }
