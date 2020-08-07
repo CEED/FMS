@@ -172,13 +172,19 @@ compute_faces(const int *dims, int *nfaces)
 
         printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
 
+#if 0
         if(k == 0)
         {
+#endif
+
+/* This case looks better */
+
             /* ADCB so normal faces out. */
             *f++ = A;
             *f++ = D;
             *f++ = C;
             *f++ = B;
+#if 0
         }
         else
         {
@@ -188,6 +194,7 @@ compute_faces(const int *dims, int *nfaces)
             *f++ = C;
             *f++ = D;
         }
+#endif
     }
 
     /* bottom/top faces */
@@ -211,6 +218,12 @@ compute_faces(const int *dims, int *nfaces)
 
         printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
 
+#if 1
+            *f++ = D;
+            *f++ = A;
+            *f++ = B;
+            *f++ = C;
+#else
         /* NOTE: I removed the reversal case. */
         {
             /* ABCD */
@@ -219,6 +232,7 @@ compute_faces(const int *dims, int *nfaces)
             *f++ = C;
             *f++ = D;
         }
+#endif
     }
 
     /* left/right faces */
@@ -245,7 +259,8 @@ compute_faces(const int *dims, int *nfaces)
         B = E1 + k*dims[0]*(dims[1]-1)      +j*dims[0] + i;       
 
         printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-
+/* NOTE: Turning this off makes the O3 dof order on the min left face good. */
+#if 0
         if(i == 0)
         {
             /* ADCB so normal faces out. */
@@ -255,6 +270,7 @@ compute_faces(const int *dims, int *nfaces)
             *f++ = B;
         }
         else
+#endif
         {
             /* ABCD */
             *f++ = A;
@@ -424,20 +440,44 @@ append_coord_dofs_cell(int order, double *dest, const int *dims,
         for(j = 0; j < dims[1]-1; ++j)
         for(i = 0; i < dims[0]-1; ++i)
         {
-            int v0,v1,v2,v3,v4,v5,v6,v7;
+            int v[8];
             /* NOTE: it does not seem like we are emitting the interior dofs
                in the "right" order for FMS. It does make the field more
                interesting though.
              */
+/* int permute[] = {0,1,2,3,4,5,6,7};*/
+/* int permute[] = {0,1,3,2,4,5,7,6};*/
+/*int permute[] = {0,6,5,4,3,2,1,7};*/
+/*int permute[] = {4,0,6,2,5,1,7,3};*/
+/*int permute[] = {1,5,3,7,0,4,2,6}; closer */
+/*int permute[] = {1,0,5,4,3,2,7,6}; close,still knotted */
+/*int permute[] = {5,4,7,6,1,0,3,2}; not right */
+/*int permute[] = {5,1,4,0,7,3,6,2}; //better */
 
-            v0 = k*dims[0]*dims[1] + j*dims[0] + i;
-            v1 = k*dims[0]*dims[1] + j*dims[0] + i+1;
-            v2 = k*dims[0]*dims[1] + (j+1)*dims[0] + i;
-            v3 = k*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
-            v4 = (k+1)*dims[0]*dims[1] + j*dims[0] + i;
-            v5 = (k+1)*dims[0]*dims[1] + j*dims[0] + i+1;
-            v6 = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i;
-            v7 = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
+//int permute[] = {7,5,6,4,3,1,2,0}; // better2 
+//int permute[] = {7,5,6,4,2,1,3,0}; // better3
+int permute[] = {7,5,6,4,2,0,1,3}; 
+
+//int permute[] = {5, 1, 0, 4, 7, 3, 2, 6}; // from MFEM AddHex // NOPE
+
+//int permute[] = {6,7,4,5,2,3,0,1};
+//int permute[] = {7,6,3,2,5,4,1,0}; // more twisted
+//int permute[] = {7,3,5,1,6,2,4,0}; //less good
+
+/*int permute[] = {6,7,4,5,2,3,0,1}; knotted */
+/*int permute[] = {5,7,1,3,4,6,0,2}; still kinked */
+/*int permute[] = {4,2,0,1,6,7,2,4}; meh */
+/*int permute[] = {0,2,4,6,1,3,5,7}; nope */
+/*int permute[] = {4,6,5,7,0,2,1,3};*/
+
+            v[permute[0]] = k*dims[0]*dims[1] + j*dims[0] + i;
+            v[permute[1]] = k*dims[0]*dims[1] + j*dims[0] + i+1;
+            v[permute[2]] = k*dims[0]*dims[1] + (j+1)*dims[0] + i;
+            v[permute[3]] = k*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
+            v[permute[4]] = (k+1)*dims[0]*dims[1] + j*dims[0] + i;
+            v[permute[5]] = (k+1)*dims[0]*dims[1] + j*dims[0] + i+1;
+            v[permute[6]] = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i;
+            v[permute[7]] = (k+1)*dims[0]*dims[1] + (j+1)*dims[0] + i+1;
 
             /* Make interior points by blending the hex vertices */
             for(kk = 1; kk < order; ++kk)
@@ -448,14 +488,14 @@ append_coord_dofs_cell(int order, double *dest, const int *dims,
                 s = ((double)jj)/((double)order);
                 t = ((double)kk)/((double)order);
 
-                value = (1.-r)*(1.-s)*(1.-t)*verts[v0*3+component] + 
-                        r     *(1.-s)*(1.-t)*verts[v1*3+component] + 
-                        (1.-r)*s     *(1.-t)*verts[v2*3+component] + 
-                        r     *s     *(1.-t)*verts[v3*3+component] +
-                        (1.-r)*(1.-s)*t     *verts[v4*3+component] + 
-                        r     *(1.-s)*t     *verts[v5*3+component] + 
-                        (1.-r)*s     *t     *verts[v6*3+component] + 
-                        r     *s     *t     *verts[v7*3+component];
+                value = (1.-r)*(1.-s)*(1.-t)*verts[v[0]*3+component] + 
+                        r     *(1.-s)*(1.-t)*verts[v[1]*3+component] + 
+                        (1.-r)*s     *(1.-t)*verts[v[2]*3+component] + 
+                        r     *s     *(1.-t)*verts[v[3]*3+component] +
+                        (1.-r)*(1.-s)*t     *verts[v[4]*3+component] + 
+                        r     *(1.-s)*t     *verts[v[5]*3+component] + 
+                        (1.-r)*s     *t     *verts[v[6]*3+component] + 
+                        r     *s     *t     *verts[v[7]*3+component];
 
                 /* Perturb the point */
                 value += travel * cos(drand48() * 2 * M_PI);
@@ -558,7 +598,7 @@ main(int argc, char *argv[])
     int *edges, *faces, *cells;
     double *verts;
     const char *protocol = "ascii";
-    int dims[3] = {3,3,3};
+    int dims[3] = {2,2,2};
     FmsInt order = 1;
 
     /* Handle some command line args. */
@@ -695,6 +735,9 @@ main(int argc, char *argv[])
 
     free(coord_data);
     free(verts);
+    free(edges);
+    free(faces);
+    free(cells);
 
     return 0;
 }
