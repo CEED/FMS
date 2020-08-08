@@ -27,3 +27,14 @@ for PROTOCOL in ascii yaml hdf5; do
         ORDER=$((ORDER+1))
     done
 done
+
+for PROTOCOL in ascii hdf5; do
+    ORDER=1
+    for ORDERSTR in one two three four five; do
+        FILENAME="FMS_test_data/hex_${PROTOCOL}_order_${ORDERSTR}.fms"
+        echo ./hexes $PROTOCOL $ORDER 6 6 6
+        ./hexes $PROTOCOL $ORDER 6 6 6
+        mv hex.fms $FILENAME
+        ORDER=$((ORDER+1))
+    done
+done

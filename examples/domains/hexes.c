@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#define DEBUG_PRINT 1
+/*#define DEBUG_PRINT 1*/
 
 #define ADD_CELLS 1
 
@@ -34,6 +34,11 @@ int dofs_for_order(int order, int nverts, int nedges, int nfaces, int ncells)
     return nverts + O1*nedges + O1*O1*nfaces + O1*O1*O1*ncells;
 }
 
+/**
+Computes a 3D grid of vertices in a usual mesh vertex ordering
+and all points get perturbed a little so we do not have a totally
+regular grid.
+*/
 double *
 compute_vertices(const int *dims, int *nverts)
 {
@@ -72,6 +77,9 @@ compute_vertices(const int *dims, int *nverts)
     return coords;
 }
 
+/**
+Computes the edges that we will link into faces.
+*/
 int *
 compute_edges(const int *dims, int *nedges)
 {
@@ -128,27 +136,29 @@ compute_edges(const int *dims, int *nedges)
     return e;
 }
 
+/**
+Computes the faces that we'll use to make hexes. The ordering
+of the edges within has been modified a bit to make dof ordering
+for orders 3+ look right on the faces.
+*/
 int *
 compute_faces(const int *dims, int *nfaces)
 {
-    int i,j,k,A,B,C,D;
-    /* number of edges. */
-    int E1 = (dims[0]-1) * (dims[1])   * (dims[2]);
-    int E2 = (dims[0])   * (dims[1]-1) * (dims[2]);
-    int E3 = (dims[0])   * (dims[1])   * (dims[2]-1);
+    int i,j,k,A,B,C,D, E1,E2,E3,F1,F2,F3, *faces, *f;
 
-    int F1 = (dims[0]-1)*(dims[1]-1)*dims[2];     /* back/front */
-    int F2 = (dims[0]-1)*(dims[1])  *(dims[2]-1); /* bottom/top */
-    int F3 = (dims[0])  *(dims[1]-1)*(dims[2]-1); /* left/right */
+    /* number of edges. */
+    E1 = (dims[0]-1) * (dims[1])   * (dims[2]);
+    E2 = (dims[0])   * (dims[1]-1) * (dims[2]);
+    E3 = (dims[0])   * (dims[1])   * (dims[2]-1);
+
+    F1 = (dims[0]-1)*(dims[1]-1)*dims[2];     /* back/front */
+    F2 = (dims[0]-1)*(dims[1])  *(dims[2]-1); /* bottom/top */
+    F3 = (dims[0])  *(dims[1]-1)*(dims[2]-1); /* left/right */
 
     *nfaces = F1 + F2 + F3;
-    printf("F1=%d\n", F1);
-    printf("F2=%d\n", F2);
-    printf("F3=%d\n", F3);
-    printf("nfaces=%d\n", *nfaces);
 
-    int *faces = (int *)malloc(*nfaces * sizeof(int)*4);
-    int *f = faces;
+    faces = (int *)malloc(*nfaces * sizeof(int)*4);
+    f = faces;
 
     /* back/front faces */
     for(k = 0; k < dims[2]; k++)
@@ -170,31 +180,11 @@ compute_faces(const int *dims, int *nfaces)
         D = E1 + k*dims[0]*(dims[1]-1)    +j*dims[0]    + i;
         B = E1 + k*dims[0]*(dims[1]-1)    +j*dims[0]    + i + 1;       
 
-        printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-
-#if 0
-        if(k == 0)
-        {
-#endif
-
-/* This case looks better */
-
-            /* ADCB so normal faces out. */
-            *f++ = A;
-            *f++ = D;
-            *f++ = C;
-            *f++ = B;
-#if 0
-        }
-        else
-        {
-            /* ABCD */
-            *f++ = A;
-            *f++ = B;
-            *f++ = C;
-            *f++ = D;
-        }
-#endif
+        /* ADCB */
+        *f++ = A;
+        *f++ = D;
+        *f++ = C;
+        *f++ = B;
     }
 
     /* bottom/top faces */
@@ -216,23 +206,11 @@ compute_faces(const int *dims, int *nfaces)
         D = E1+E2 + k*dims[0]*dims[1]    +j*dims[0] + i + 1;
         B = E1+E2 + k*dims[0]*dims[1]    +j*dims[0] + i;       
 
-        printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-
-#if 1
-            *f++ = D;
-            *f++ = A;
-            *f++ = B;
-            *f++ = C;
-#else
-        /* NOTE: I removed the reversal case. */
-        {
-            /* ABCD */
-            *f++ = A;
-            *f++ = B;
-            *f++ = C;
-            *f++ = D;
-        }
-#endif
+        /* This edge order works well for order 3+ dof ordering */
+        *f++ = D;
+        *f++ = A;
+        *f++ = B;
+        *f++ = C;
     }
 
     /* left/right faces */
@@ -258,26 +236,11 @@ compute_faces(const int *dims, int *nfaces)
         D = E1 + (k+1)*dims[0]*(dims[1]-1)  +j*dims[0] + i;
         B = E1 + k*dims[0]*(dims[1]-1)      +j*dims[0] + i;       
 
-        printf("A=%d, B=%d, C=%d, D=%d\n", A, B, C, D);
-/* NOTE: Turning this off makes the O3 dof order on the min left face good. */
-#if 0
-        if(i == 0)
-        {
-            /* ADCB so normal faces out. */
-            *f++ = A;
-            *f++ = D;
-            *f++ = C;
-            *f++ = B;
-        }
-        else
-#endif
-        {
-            /* ABCD */
-            *f++ = A;
-            *f++ = B;
-            *f++ = C;
-            *f++ = D;
-        }
+        /* ABCD */
+        *f++ = A;
+        *f++ = B;
+        *f++ = C;
+        *f++ = D;
     }
 
 #ifdef DEBUG_PRINT
@@ -290,6 +253,9 @@ compute_faces(const int *dims, int *nfaces)
     return faces;
 }
 
+/**
+Compute the hex cells from sets of faces.
+*/
 int *
 compute_cells(const int *dims, int *ncells)
 {
@@ -336,6 +302,9 @@ compute_cells(const int *dims, int *ncells)
     return cells;
 }
 
+/**
+Adds the coordinate dofs for the vertices.
+*/
 double *
 append_coord_dofs_verts(double *dest, const double *verts, int nverts, int component)
 {
@@ -345,7 +314,9 @@ append_coord_dofs_verts(double *dest, const double *verts, int nverts, int compo
     return dest + nverts;
 }
 
-/* Adds coordinate dofs along edges */
+/**
+Adds coordinate dofs along edges.
+*/
 double *
 append_coord_dofs_edge(int order, double *dest, const double *verts, 
     const int *edges, int nedges, double travel, int component)
@@ -379,7 +350,9 @@ append_coord_dofs_edge(int order, double *dest, const double *verts,
     return ptr;
 }
 
-/* Adds coordinate dofs on quad faces */
+/**
+Adds coordinate dofs on quad faces.
+*/
 double *
 append_coord_dofs_face(int order, double *dest, const double *verts,
     const int *edges, const int *faces, int nfaces, double travel,
@@ -436,40 +409,19 @@ append_coord_dofs_cell(int order, double *dest, const int *dims,
     {
         /* NOTE: just do cells this way rather than tracing down through
                  faces/edges to get to vertices. */
+
+        /* The permute array reorders the vertices into an order that
+           will emit interior dofs in an order compatible with FMS/MFEM.
+           This array is VERY IMPORTANT for getting dofs for orders 3+
+           right.
+         */
+        int permute[] = {3,1,7,5,2,0,6,4};
+
         for(k = 0; k < dims[2]-1; ++k)
         for(j = 0; j < dims[1]-1; ++j)
         for(i = 0; i < dims[0]-1; ++i)
         {
             int v[8];
-            /* NOTE: it does not seem like we are emitting the interior dofs
-               in the "right" order for FMS. It does make the field more
-               interesting though.
-             */
-/* int permute[] = {0,1,2,3,4,5,6,7};*/
-/* int permute[] = {0,1,3,2,4,5,7,6};*/
-/*int permute[] = {0,6,5,4,3,2,1,7};*/
-/*int permute[] = {4,0,6,2,5,1,7,3};*/
-/*int permute[] = {1,5,3,7,0,4,2,6}; closer */
-/*int permute[] = {1,0,5,4,3,2,7,6}; close,still knotted */
-/*int permute[] = {5,4,7,6,1,0,3,2}; not right */
-/*int permute[] = {5,1,4,0,7,3,6,2}; //better */
-
-//int permute[] = {7,5,6,4,3,1,2,0}; // better2 
-//int permute[] = {7,5,6,4,2,1,3,0}; // better3
-int permute[] = {7,5,6,4,2,0,1,3}; 
-
-//int permute[] = {5, 1, 0, 4, 7, 3, 2, 6}; // from MFEM AddHex // NOPE
-
-//int permute[] = {6,7,4,5,2,3,0,1};
-//int permute[] = {7,6,3,2,5,4,1,0}; // more twisted
-//int permute[] = {7,3,5,1,6,2,4,0}; //less good
-
-/*int permute[] = {6,7,4,5,2,3,0,1}; knotted */
-/*int permute[] = {5,7,1,3,4,6,0,2}; still kinked */
-/*int permute[] = {4,2,0,1,6,7,2,4}; meh */
-/*int permute[] = {0,2,4,6,1,3,5,7}; nope */
-/*int permute[] = {4,6,5,7,0,2,1,3};*/
-
             v[permute[0]] = k*dims[0]*dims[1] + j*dims[0] + i;
             v[permute[1]] = k*dims[0]*dims[1] + j*dims[0] + i+1;
             v[permute[2]] = k*dims[0]*dims[1] + (j+1)*dims[0] + i;
@@ -591,12 +543,15 @@ add_radial_scalar(FmsDataCollection dc, FmsComponent volume,
     free(coords);
 }
 
+/**
+The main program.
+*/
 int
 main(int argc, char *argv[])
 {
-    int i, nverts, nedges, nfaces, ncells = 0;
+    int i, ndofs, nverts, nedges, nfaces, ncells = 0;
     int *edges, *faces, *cells;
-    double *verts;
+    double *verts, *coord_data, *x, *y, *z, px, py, pz;
     const char *protocol = "ascii";
     int dims[3] = {2,2,2};
     FmsInt order = 1;
@@ -672,27 +627,33 @@ main(int argc, char *argv[])
                                     FMS_NODAL_GAUSS_CLOSED, order);
 
     /* Make the coordinate data. Make it BYNODE xxxx...yyyy...zzzz... */
-    int ndofs = dofs_for_order(order, nverts, nedges, nfaces, ncells);
-    double *coord_data = (double *)malloc(ndofs * sizeof(double)*3);
-    double *x = coord_data;
-    double *y = coord_data + ndofs;
-    double *z = coord_data + 2*ndofs;
+    ndofs = dofs_for_order(order, nverts, nedges, nfaces, ncells);
+    coord_data = (double *)malloc(ndofs * sizeof(double)*3);
+    x = coord_data;
+    y = coord_data + ndofs;
+    z = coord_data + 2*ndofs;
+
+    /* These represent the amount we allow for perturbation of dofs to help 
+       make things wavy. */
+    px = 0.05 / ((double)(dims[0]-1));
+    py = 0.05 / ((double)(dims[1]-1));
+    pz = 0.05 / ((double)(dims[2]-1));
 
     /* Store coordinate dofs by node. */
     x = append_coord_dofs_verts(x, verts, nverts, 0);
-    x = append_coord_dofs_edge(order, x, verts, edges, nedges, 0.02, 0);
-    x = append_coord_dofs_face(order, x, verts, edges, faces, nfaces, 0.02, 0);
-    x = append_coord_dofs_cell(order, x, dims, verts, 0.02, 0);
+    x = append_coord_dofs_edge(order, x, verts, edges, nedges, px, 0);
+    x = append_coord_dofs_face(order, x, verts, edges, faces, nfaces, px, 0);
+    x = append_coord_dofs_cell(order, x, dims, verts, px, 0);
 
     y = append_coord_dofs_verts(y, verts, nverts, 1);
-    y = append_coord_dofs_edge(order, y, verts, edges, nedges, 0.02, 1);
-    y = append_coord_dofs_face(order, y, verts, edges, faces, nfaces, 0.02, 1);
-    y = append_coord_dofs_cell(order, y, dims, verts, 0.02, 1);
+    y = append_coord_dofs_edge(order, y, verts, edges, nedges, py, 1);
+    y = append_coord_dofs_face(order, y, verts, edges, faces, nfaces, py, 1);
+    y = append_coord_dofs_cell(order, y, dims, verts, py, 1);
 
     z = append_coord_dofs_verts(z, verts, nverts, 2);
-    z = append_coord_dofs_edge(order, z, verts, edges, nedges, 0.02, 2);
-    z = append_coord_dofs_face(order, z, verts, edges, faces, nfaces, 0.02, 2);
-    z = append_coord_dofs_cell(order, z, dims, verts, 0.02, 2);
+    z = append_coord_dofs_edge(order, z, verts, edges, nedges, pz, 2);
+    z = append_coord_dofs_face(order, z, verts, edges, faces, nfaces, pz, 2);
+    z = append_coord_dofs_cell(order, z, dims, verts, pz, 2);
 
     /* Add the coordinates to the data collection. */
     FmsField coords;
@@ -728,10 +689,12 @@ main(int argc, char *argv[])
     /* Write the data out. */
     FmsIOWrite("hex.fms", protocol, dc);
 
+#if 0
     /* Write coordinate dofs as Point3D so we can plot them. */
     printf("X Y Z dof\n");
     for(i = 0; i < ndofs; ++i)
         printf("%lg %lg %lg %d\n", coord_data[i],coord_data[ndofs+i], coord_data[2*ndofs+i], i);
+#endif
 
     free(coord_data);
     free(verts);
