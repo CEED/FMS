@@ -1683,6 +1683,7 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key, Fm
                 sprintf(temp, "%d", (int)i);
                 tk = join_keys(kdata, temp);
                 err = FmsIOWriteFmsMetaData(ctx, io, tk, data[i]);
+                FREE(tk);
             }
             FREE(kdata);
 
