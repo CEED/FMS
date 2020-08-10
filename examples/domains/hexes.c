@@ -19,6 +19,7 @@
 #include <fmsio.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 
 /*#define DEBUG_PRINT 1*/
@@ -544,37 +545,15 @@ add_radial_scalar(FmsDataCollection dc, FmsComponent volume,
 }
 
 /**
-The main program.
+Make a data collection and write it out.
 */
-int
-main(int argc, char *argv[])
+void
+WriteTimeStep(const char *filename, const char *protocol, const int dims[3], 
+    FmsInt order, int cycle, double dtime)
 {
-    int i, ndofs, nverts, nedges, nfaces, ncells = 0;
+    int i, ndofs, nverts, nedges, nfaces, ncells;
     int *edges, *faces, *cells;
     double *verts, *coord_data, *x, *y, *z, px, py, pz;
-    const char *protocol = "ascii";
-    int dims[3] = {2,2,2};
-    FmsInt order = 1;
-
-    /* Handle some command line args. */
-    if(argc > 1)
-    {
-        protocol = argv[1];
-        if(argc > 2)
-        {
-            order = atoi(argv[2]);
-            if(order < 1)
-                return -1;
-            if(argc >= 6)
-            {
-                dims[0] = atoi(argv[3]);
-                dims[1] = atoi(argv[4]);
-                dims[2] = atoi(argv[5]);
-                if(dims[0] < 2 || dims[1] < 2 || dims[2] < 2)
-                    return -2;
-            }
-        }
-    }
 
     /* These vertices are just at the cell corners. We'll use them to make dofs later. */
     verts = compute_vertices(dims, &nverts);
@@ -677,8 +656,6 @@ main(int argc, char *argv[])
 
     /* Add some metadata. (optional) */
     FmsMetaData mdata;
-    int cycle = 1234;
-    double dtime = 1.2345678;
     FmsDataCollectionAttachMetaData(dc, &mdata);
     FmsMetaData *mdata_objects;
     FmsMetaDataSetMetaData(mdata, "Info", 3, &mdata_objects);
@@ -687,7 +664,7 @@ main(int argc, char *argv[])
     FmsMetaDataSetString(mdata_objects[2], "Description", "Hex example file");
 
     /* Write the data out. */
-    FmsIOWrite("hex.fms", protocol, dc);
+    FmsIOWrite(filename, protocol, dc);
 
 #if 0
     /* Write coordinate dofs as Point3D so we can plot them. */
@@ -701,6 +678,55 @@ main(int argc, char *argv[])
     free(edges);
     free(faces);
     free(cells);
+
+    FmsDataCollectionDestroy(&dc);
+}
+
+/**
+The main program.
+*/
+int
+main(int argc, char *argv[])
+{
+    int timestep = 0, nts = 1;
+    const char *protocol = "ascii";
+    char filename[100];
+    int dims[3] = {3,3,3};
+    FmsInt order = 1;
+
+    /* Handle some command line args. */
+    if(argc > 1)
+    {
+        protocol = argv[1];
+        if(argc > 2)
+        {
+            order = atoi(argv[2]);
+            if(order < 1)
+                return -1;
+            if(argc >= 6)
+            {
+                dims[0] = atoi(argv[3]);
+                dims[1] = atoi(argv[4]);
+                dims[2] = atoi(argv[5]);
+                if(dims[0] < 2 || dims[1] < 2 || dims[2] < 2)
+                    return -2;
+                if(argc >= 7)                 
+                   nts = atoi(argv[6]);
+            }
+        }
+    }
+
+    for(timestep = 0; timestep < nts; timestep++)
+    {
+        int cycle  = 1234 + 1000*timestep;
+        double dtime = 1.2345678 + timestep;
+        if(nts > 1)
+            sprintf(filename, "hex%04d.fms", timestep);
+        else
+            strcpy(filename, "hex.fms");
+
+        WriteTimeStep(filename, protocol, dims, order, cycle, dtime);
+    }
 
     return 0;
 }
