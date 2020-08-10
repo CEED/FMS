@@ -1370,9 +1370,11 @@ FmsIOGetTypedIntArrayConduit(FmsIOContext *ctx, const char *path, FmsIntType *ty
 static int
 FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *type, void **values, FmsInt *n)
 {
-    conduit_node *node = NULL, *size_node = NULL;
+    conduit_node *node = NULL, *values_node = NULL, *size_node = NULL;
     char *type_str = NULL;
     void *conduit_data_ptr = NULL;
+    const conduit_datatype *dt = NULL;
+
     if(!ctx) E_RETURN(1);
     if(!path) E_RETURN(2);
     if(!type) E_RETURN(3);
@@ -1404,8 +1406,37 @@ FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *t
     if(!conduit_node_has_child(node, "Values"))
         E_RETURN(11);
 
-    conduit_data_ptr = conduit_node_element_ptr(conduit_node_fetch(node, "Values"), 0);
+    values_node = conduit_node_fetch(node, "Values");
+    if(values_node == NULL)
+        E_RETURN(12);
 
+    dt = conduit_node_dtype(values_node);
+    if(dt == NULL)
+        E_RETURN(13);
+
+    /* Check the Conduit type to see how well it matches the type string. There 
+       are some Conduit protocols that make double even when we gave it float
+       data (YAML/JSON).
+     */
+    if(*type == FMS_FLOAT || *type == FMS_COMPLEX_FLOAT)
+    {
+        if(conduit_datatype_is_double(dt) || conduit_datatype_is_float64(dt))
+        {
+            /* The type was actually double for the data values. */
+            *type = (*type == FMS_FLOAT) ? FMS_DOUBLE : FMS_COMPLEX_DOUBLE;
+        }
+    }
+    else if(*type == FMS_DOUBLE || *type == FMS_COMPLEX_DOUBLE)
+    {
+        if(conduit_datatype_is_float(dt) || conduit_datatype_is_float32(dt))
+        {
+            /* The type was actually float for the data values. */
+            *type = (*type == FMS_DOUBLE) ? FMS_FLOAT : FMS_COMPLEX_FLOAT;
+        }
+    }
+
+    conduit_data_ptr = conduit_node_element_ptr(values_node, 0);
+    
     /* Need to copy the data out of conduit - right? */
     switch(*type)
     {
@@ -1420,7 +1451,7 @@ FmsIOGetScalarArrayConduit(FmsIOContext *ctx, const char *path, FmsScalarType *t
         FOR_EACH_SCALAR_TYPE(COPY_DATA)
     #undef COPY_DATA
         default:
-            E_RETURN(12);
+            E_RETURN(14);
     }
 
     return 0;
