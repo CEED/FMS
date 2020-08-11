@@ -359,7 +359,7 @@ append_coord_dofs_face(int order, double *dest, const double *verts,
     const int *edges, const int *faces, int nfaces, double travel,
     int component)
 {
-    int i,j,edge,e0,e2,v0,v1,v2,v3;
+    int i,j,ii,jj,edge,e0,e2,v0,v1,v2,v3;
     double value, r,s, *ptr = dest;
     if(order >= 2)
     {
@@ -377,8 +377,8 @@ append_coord_dofs_face(int order, double *dest, const double *verts,
             v3 = edges[e2*2+1];
 
             /* Make interior points by blending the quad vertices */
-            for(int jj = 1; jj < order; ++jj)
-            for(int ii = 1; ii < order; ++ii)
+            for(jj = 1; jj < order; ++jj)
+            for(ii = 1; ii < order; ++ii)
             {
                 r = ((double)ii)/((double)order);
                 s = ((double)jj)/((double)order);
