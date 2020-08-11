@@ -359,29 +359,29 @@ append_coord_dofs_face(int order, double *dest, const double *verts,
     const int *edges, const int *faces, int nfaces, double travel,
     int component)
 {
-    int i,j,edge,v0,v1;
-    double value, *ptr = dest;
+    int i,j,edge,e0,e2,v0,v1,v2,v3;
+    double value, r,s, *ptr = dest;
     if(order >= 2)
     {
         for(i = 0; i < nfaces; ++i)
         {
             /* NOTE: we assume edges point the same way. */
-            int e0 = faces[i*4+0];
-            int e2 = faces[i*4+2];
+            e0 = faces[i*4+0];
+            e2 = faces[i*4+2];
 
             /* 3012 seems to be the ordering to get interior dofs 
                in the right order. */
-            int v0 = edges[e0*2+1];
-            int v1 = edges[e0*2+0];
-            int v2 = edges[e2*2+0];
-            int v3 = edges[e2*2+1];
+            v0 = edges[e0*2+1];
+            v1 = edges[e0*2+0];
+            v2 = edges[e2*2+0];
+            v3 = edges[e2*2+1];
 
             /* Make interior points by blending the quad vertices */
             for(int jj = 1; jj < order; ++jj)
             for(int ii = 1; ii < order; ++ii)
             {
-                double r = ((double)ii)/((double)order);
-                double s = ((double)jj)/((double)order);
+                r = ((double)ii)/((double)order);
+                s = ((double)jj)/((double)order);
 
                 value = (1.-r)*(1.-s)*verts[v0*3+component] + 
                         r     *(1.-s)*verts[v1*3+component] + 

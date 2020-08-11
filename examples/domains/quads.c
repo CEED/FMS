@@ -148,29 +148,30 @@ double *
 append_coords_face(int order, double *ptr, const double *coords,
     const int *edges, const int *quads, int nquads, double travel)
 {
-    int i,j,edge,v0,v1;
+    int i,j,ii,jj,edge,e0,e2,v0,v1,v2,v3;
     double pt[2], xoffset, yoffset;
+    float r,s;
     if(order >= 2)
     {
         for(i = 0; i < nquads; ++i)
         {
             /* NOTE: we assume edges point the same way. */
-            int e0 = quads[i*4+0];
-            int e2 = quads[i*4+2];
+            e0 = quads[i*4+0];
+            e2 = quads[i*4+2];
 
             /* 3012 seems to be the ordering to get interior dofs 
                in the right order. */
-            int v0 = edges[e0*2+1];
-            int v1 = edges[e0*2+0];
-            int v2 = edges[e2*2+0];
-            int v3 = edges[e2*2+1];
+            v0 = edges[e0*2+1];
+            v1 = edges[e0*2+0];
+            v2 = edges[e2*2+0];
+            v3 = edges[e2*2+1];
 
             /* Make interior points by blending the quad vertices */
-            for(int jj = 1; jj < order; ++jj)
-            for(int ii = 1; ii < order; ++ii)
+            for(jj = 1; jj < order; ++jj)
+            for(ii = 1; ii < order; ++ii)
             {
-                float r = ((float)ii)/((float)order);
-                float s = ((float)jj)/((float)order);
+                r = ((float)ii)/((float)order);
+                s = ((float)jj)/((float)order);
 
                 pt[0] = (1.-r)*(1.-s)*coords[v0*2+0] + 
                         r     *(1.-s)*coords[v1*2+0] + 
