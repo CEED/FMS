@@ -1928,7 +1928,26 @@ int FmsFieldDescriptorSetFixedOrder(FmsFieldDescriptor fd,
     break;
   }
   case FMS_HDIV: {
-    FmsAbortNotImplemented();
+    const FmsInt pp1 = p + 1, pp2 = p + 2;
+    ent_dofs[FMS_VERTEX] = 0;
+    ent_dofs[FMS_EDGE] = 0;
+    ent_dofs[FMS_TETRAHEDRON] = 0;
+    ent_dofs[FMS_HEXAHEDRON] = 0;
+    if(dim == 2)
+    {
+        ent_dofs[FMS_EDGE] = pp1;
+        ent_dofs[FMS_TRIANGLE] = p*pp1;
+        ent_dofs[FMS_QUADRILATERAL] = 2*p*pp1;
+    }
+    else
+    {
+        ent_dofs[FMS_TRIANGLE] = pp1*pp2/2;
+        ent_dofs[FMS_QUADRILATERAL] = pp1*pp1;
+        ent_dofs[FMS_TETRAHEDRON] = p*pp1*(p + 2)/2;
+        ent_dofs[FMS_HEXAHEDRON] = 3*p*pp1*pp1;
+    }
+    ent_dofs[FMS_WEDGE] = 0;
+    ent_dofs[FMS_PYRAMID] = 0;
     break;
   }
   default: E_RETURN(5);
@@ -1939,6 +1958,7 @@ int FmsFieldDescriptorSetFixedOrder(FmsFieldDescriptor fd,
       num_dofs += comp->parts[i].num_entities[et] * ent_dofs[et];
     }
   }
+
   // Construct fixed-order descriptor
   struct _FmsFieldDescriptor_FixedOrder *fo;
   fo = malloc(sizeof(*fo));
