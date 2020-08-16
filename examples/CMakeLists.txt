@@ -31,6 +31,9 @@ if (ENABLE_DEMO)
   find_package(SCOREC 2.1.0 REQUIRED CONFIG PATHS ${PUMI_DIR} NO_DEFAULT_PATH)
   find_package(mfem REQUIRED NAMES MFEM HINTS "${MFEM_DIR}"
                "${MFEM_DIR}/lib/cmake/mfem" NO_DEFAULT_PATH)
+  if (NOT (MFEM_VERSION VERSION_LESS 4.0.0))
+    set(CMAKE_CXX_STANDARD 11)
+  endif()
 
   add_executable(demo_pumi_mfem demo_pumi_mfem.cpp)
   target_include_directories(demo_pumi_mfem PUBLIC ${MPI_CXX_INCLUDE_PATH}
