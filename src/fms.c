@@ -2400,7 +2400,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
       for (FmsInt i = 0; i < 8; i++) { inv_perm[perm[i]] = i; }
     }
     const int bsize = 1024;
-    FmsInt hex_face[6*bsize]; // the 4 faces of the tets
+    FmsInt hex_face[6*bsize]; // the 6 faces of the hexes
     FmsInt hex_edge[8*bsize]; // the edges of faces A and B
     FmsInt hex_vert_x[8*bsize]; // vertices before applying the permutation
     for (FmsInt off = 0; off < num_ents; off += bsize) {
@@ -2419,7 +2419,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
         FmsInt he_x[8], eo_x[8];
         for (int j = 0; j < 2; j++) {
           for (int e = 0; e < 4; e++) {
-            eo[4*j+e] = quad_side_ori[4*hf[j+1]+e];
+            eo[4*j+e] = quad_side_ori[4*hf[j]+e];
           }
         }
         if (so[0] == FMS_ORIENTATION_UNKNOWN ||
@@ -2446,7 +2446,7 @@ int FmsDomainGetEntitiesVerts(FmsDomain domain, FmsEntityType type,
                         idx_type, &hex_edge[4*bsize], 4*sz);
       FmsEntitiesToSides(idx_type, 4*sz, 0, 4*sz, &hex_edge[4*bsize],
                          2, all_edges, 8*sz, 0, hex_vert_x, 1);
-      // hex_vert_x[mod] -> tet_vert_x
+      // hex_vert_x[mod] -> hex_vert_x
       for (FmsInt i = 0; i < sz; i++) {
         FmsInt *hv = hex_vert_x+8*i, z;
         if (hex_face[4*i+0] == 0) {
