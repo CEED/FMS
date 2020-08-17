@@ -32,9 +32,13 @@ for PROTOCOL in ascii hdf5; do
     ORDER=1
     for ORDERSTR in one two three four five; do
         FILENAME="FMS_test_data/hex_${PROTOCOL}_order_${ORDERSTR}.fms"
+        FILENAME2="FMS_test_data/hex_${PROTOCOL}_order_${ORDERSTR}.3D"
+        FILENAME3="FMS_test_data/hex_${PROTOCOL}_order_${ORDERSTR}.lines"
         echo ./hexes $PROTOCOL $ORDER 6 6 6
         ./hexes $PROTOCOL $ORDER 6 6 6
         mv hex.fms $FILENAME
+        mv hex.3D $FILENAME2
+        mv hex.lines $FILENAME3
         ORDER=$((ORDER+1))
     done
 done

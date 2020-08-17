@@ -666,12 +666,41 @@ WriteTimeStep(const char *filename, const char *protocol, const int dims[3],
     /* Write the data out. */
     FmsIOWrite(filename, protocol, dc);
 
-#if 0
     /* Write coordinate dofs as Point3D so we can plot them. */
-    printf("X Y Z dof\n");
-    for(i = 0; i < ndofs; ++i)
-        printf("%lg %lg %lg %d\n", coord_data[i],coord_data[ndofs+i], coord_data[2*ndofs+i], i);
-#endif
+    {
+    char filename2[100];
+    size_t ext = strlen(filename) - 4; /* assume .fms */
+    strcpy(filename2, filename);
+    strcpy(filename2+ext, ".3D");
+    FILE *f = fopen(filename2, "wt");
+    if(f != NULL)
+    {
+        fprintf(f, "X Y Z dof\n");
+        for(i = 0; i < ndofs; ++i)
+            fprintf(f, "%lg %lg %lg %d\n", coord_data[i],coord_data[ndofs+i], coord_data[2*ndofs+i], i);
+        fclose(f);
+    }
+
+    /* Write a file that contains the edges so we can plot them. */
+    strcpy(filename2+ext, ".lines");
+    f = fopen(filename2, "wt");
+    if(f != NULL)
+    {
+        for(i = 0; i < nedges; ++i)
+        {
+            int v0,v1;
+            v0 = edges[2*i+0]; v1 = edges[2*i+1];
+            fprintf(f, "E%d\n%lg, %lg, %lg\n%lg, %lg, %lg\n", i,
+                coord_data[v0],
+                coord_data[ndofs+v0],
+                coord_data[2*ndofs+v0],
+                coord_data[v1],
+                coord_data[ndofs+v1],
+                coord_data[2*ndofs+v1]);
+        }
+        fclose(f);
+    }
+    }
 
     free(coord_data);
     free(verts);
