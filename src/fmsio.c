@@ -661,7 +661,6 @@ FmsIOGetTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType *type,
   if(err)
     E_RETURN(15);
 
-    // TODO: Turn the "while(len)" into while(i < *n)
 #define READ_ARRAY_DATA(DEST_T, FUNC) \
 do { \
     DEST_T *data = malloc(sizeof(DEST_T) * *n); \
@@ -671,7 +670,7 @@ do { \
         char *off = v, *newoff = NULL; \
         if(off[0] == '[') \
             off++; \
-        while(len) { \
+        while(len && i < *n) { \
             data[i++] = (DEST_T)FUNC(off, &newoff, 10); \
             newoff++; \
             if(*newoff = ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
@@ -692,7 +691,6 @@ do { \
 #define SIGNED_FUNC strtol
 #endif
 
-  // TODO: Fix the unsigned cases.
   switch(*type) {
   case FMS_INT8:
     READ_ARRAY_DATA(int8_t, SIGNED_FUNC);
@@ -707,16 +705,16 @@ do { \
     READ_ARRAY_DATA(int64_t, SIGNED_FUNC);
     break;
   case FMS_UINT8:
-    READ_ARRAY_DATA(uint8_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(uint8_t, UNSIGNED_FUNC);
     break;
   case FMS_UINT16:
-    READ_ARRAY_DATA(uint16_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(uint16_t, UNSIGNED_FUNC);
     break;
   case FMS_UINT32:
-    READ_ARRAY_DATA(uint32_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(uint32_t, UNSIGNED_FUNC);
     break;
   case FMS_UINT64:
-    READ_ARRAY_DATA(uint64_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(uint64_t, UNSIGNED_FUNC);
     break;
   default:
     E_RETURN(16);
@@ -812,7 +810,7 @@ do { \
         char *off = v, *newoff = NULL; \
         if(off[0] == '[') \
             off++; \
-        while(len) { \
+        while(len && i < SIZE) { \
             data[i++] = (DEST_T)FUNC(off, &newoff); \
             newoff++; \
             if(*newoff = ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
@@ -842,6 +840,7 @@ do { \
     E_RETURN(16);
     break;
   }
+#undef READ_ARRAY_DATA
 
   return 0;
 }
