@@ -17,8 +17,11 @@
 add_executable(domains domains.c)
 target_link_libraries(domains PRIVATE fms)
 
+add_executable(hexes hexes.c)
+target_link_libraries(hexes PRIVATE fms m)
+
 add_executable(quads quads.c)
 target_link_libraries(quads PRIVATE fms m)
 
-add_executable(hexes hexes.c)
-target_link_libraries(hexes PRIVATE fms m)
+add_executable(simple_mesh simple_mesh.c)
+target_link_libraries(simple_mesh PRIVATE fms)
