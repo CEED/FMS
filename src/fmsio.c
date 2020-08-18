@@ -30,20 +30,15 @@
 #include <conduit_relay.h>
 #endif
 
-// Turn this back into if(PTR) free(PTR) ?
-#ifdef _NDEBUG
-#define FREE(PTR) free(PTR)
-#else
+
+// #define FREE(PTR) free(PTR)
 #define FREE(PTR) \
 do { \
-    if(!PTR) \
-        printf("Double free! File: " __FILE__ " Line: %d\n", __LINE__); \
-    free(PTR); \
-    PTR = NULL; \
+    if(PTR) \
+        free(PTR); \
 } while(0)
-#endif
 
-// Feature: If you set this to 1 then the last line is going to have 2
+// NOTE: If set to 1 the last line will still have 2 entries.
 #define FMS_ELE_PER_LINE 3u
 
 #if UINT_MAX == ULONG_MAX
@@ -83,8 +78,8 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
           "Error code: %d\n"
           "Function:   %s\n"
           "File:       %s:%d\n\n"
-          /*          "Aborting ...\n\n"*/, err_code, func, file, line);
-  /*  abort();*/
+          "Aborting ...\n\n", err_code, func, file, line);
+  abort();
 }
 #ifndef _MSC_VER
 #define FMS_PRETTY_FUNCTION __PRETTY_FUNCTION__
@@ -333,7 +328,6 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values,
   fprintf(ctx->fp, "%s/Type: %s\n", path, FmsIntTypeNames[FMS_UINT64]);
 
   if(n) {
-#if 1
     /* Should we make it YAML-like?*/
     fprintf(ctx->fp, "%s/Values: [", path);
     for(i = 0; i < n; ++i) {
@@ -346,13 +340,6 @@ FmsIOAddIntArray(FmsIOContext *ctx, const char *path, const FmsInt *values,
         fprintf(ctx->fp, "\n");
     }
     fprintf(ctx->fp, "]\n");
-#else
-    /* Or should we make it a little simpler to read (write len)?*/
-    fprintf(ctx->fp, "%s: %llu ", path, n);
-    for(i = 0; i < n; ++i)
-      fprintf(ctx->fp, "%llu ", values[i]);
-    fprintf(ctx->fp, "\n");
-#endif
   }
   return 0;
 }
@@ -480,7 +467,6 @@ FmsIOAddString(FmsIOContext *ctx, const char *path, const char *value) {
   return 0;
 }
 
-/* TODO: write the other write/read methods*/
 #define FMS_BUFFER_SIZE 512
 
 /* Get functions. Assume that the file pointer is at the right place.
@@ -675,6 +661,7 @@ FmsIOGetTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType *type,
   if(err)
     E_RETURN(15);
 
+    // TODO: Turn the "while(len)" into while(i < *n)
 #define READ_ARRAY_DATA(DEST_T, FUNC) \
 do { \
     DEST_T *data = malloc(sizeof(DEST_T) * *n); \
@@ -705,6 +692,7 @@ do { \
 #define SIGNED_FUNC strtol
 #endif
 
+  // TODO: Fix the unsigned cases.
   switch(*type) {
   case FMS_INT8:
     READ_ARRAY_DATA(int8_t, SIGNED_FUNC);
@@ -1522,7 +1510,6 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj) {
 static int
 FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
                       FmsMetaData mdata) {
-  /** TODO: write me */
   int err = 0;
   FmsMetaDataType type;
 
@@ -2744,12 +2731,6 @@ FmsIOWriteFmsField(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     FmsIOWriteFmsMetaData(ctx, io, kmd, md);
     FREE(kmd);
   }
-
-  /* NOTES:
-      1. What is in the MetaData?
-      2. If each field points to a field descriptor - do should I write FieldDescriptors here?
-          * Maybe multiple fields can point to the same FieldDescriptor in which case
-              I should just write them seperate and refer to them. */
 
   return 0;
 }
