@@ -26,7 +26,7 @@ extern "C" {
 
 /**
 @brief Writes the provided FmsDataCollection to a file.
-@param filename The name of the file to save. If the filename does not include 
+@param filename The name of the file to save. If the filename does not include
                 an appropriate file extension, one may be added.
 @param protocol The type of file to be saved. By default, the protocol
                 should be "ascii". If FMS is compiled with Conduit support then
@@ -35,7 +35,8 @@ extern "C" {
 @param dc       The FMS object that will be written to the file.
 @return The function returns 0 on success and non-zero for failure.
 */
-int FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc);
+int FmsIOWrite(const char *filename, const char *protocol,
+               FmsDataCollection dc);
 
 /**
 @brief Reads an FmsDataCollection from a file.
@@ -49,7 +50,8 @@ int FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc)
 @param[out] dc  The FMS object that was read from the file.
 @return The function returns 0 on success and non-zero for failure.
 */
-int FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc);
+int FmsIORead(const char *filename, const char *protocol,
+              FmsDataCollection *dc);
 
 
 #ifdef __cplusplus

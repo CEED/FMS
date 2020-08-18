@@ -951,7 +951,7 @@ int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type) {
     *type = FMS_META_DATA;
   else
     E_RETURN(3);
-    
+
   return 0;
 }
 
@@ -1933,18 +1933,15 @@ int FmsFieldDescriptorSetFixedOrder(FmsFieldDescriptor fd,
     ent_dofs[FMS_EDGE] = 0;
     ent_dofs[FMS_TETRAHEDRON] = 0;
     ent_dofs[FMS_HEXAHEDRON] = 0;
-    if(dim == 2)
-    {
-        ent_dofs[FMS_EDGE] = pp1;
-        ent_dofs[FMS_TRIANGLE] = p*pp1;
-        ent_dofs[FMS_QUADRILATERAL] = 2*p*pp1;
-    }
-    else
-    {
-        ent_dofs[FMS_TRIANGLE] = pp1*pp2/2;
-        ent_dofs[FMS_QUADRILATERAL] = pp1*pp1;
-        ent_dofs[FMS_TETRAHEDRON] = p*pp1*(p + 2)/2;
-        ent_dofs[FMS_HEXAHEDRON] = 3*p*pp1*pp1;
+    if(dim == 2) {
+      ent_dofs[FMS_EDGE] = pp1;
+      ent_dofs[FMS_TRIANGLE] = p*pp1;
+      ent_dofs[FMS_QUADRILATERAL] = 2*p*pp1;
+    } else {
+      ent_dofs[FMS_TRIANGLE] = pp1*pp2/2;
+      ent_dofs[FMS_QUADRILATERAL] = pp1*pp1;
+      ent_dofs[FMS_TETRAHEDRON] = p*pp1*(p + 2)/2;
+      ent_dofs[FMS_HEXAHEDRON] = 3*p*pp1*pp1;
     }
     ent_dofs[FMS_WEDGE] = 0;
     ent_dofs[FMS_PYRAMID] = 0;

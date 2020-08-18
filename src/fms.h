@@ -788,7 +788,7 @@ int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
 @brief Get the name of the data collection.
 @param dc the data collection.
 @param[out] name A char pointer that will be set to point to the name string.
-           The name is owned by the data collection so it should not be 
+           The name is owned by the data collection so it should not be
            freed or modified.
 @return 0 on success, non-zero otherwise.
 */
