@@ -202,9 +202,10 @@ enum { FMS_INVALID_DIM = 127 };
     For FMS_HEXAHEDRON, the faces (sides), "ABCDEF", the edges, "abcdefghijkl"
     and the vertices, "01234567", are ordered as follows:
 
-              7--g--6
-             /|    /|
-            / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
+    z  y
+    | /       7--g--6
+    |/       /|    /|
+    *--x    / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
            h  |  f  |   bottom   top      front    back     left     right
           /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
          /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
