@@ -864,6 +864,27 @@ int FmsMetaDataGetMetaData(FmsMetaData mdata, const char **mdata_name,
                            FmsInt *size, FmsMetaData **data);
 
 
+///
+/// Comparison interface
+///
+
+/// Return 0 if equivalent, not 0 otherwise
+int FmsDataCollectionCompare(FmsDataCollection,FmsDataCollection);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsMeshCompare(FmsMesh,FmsMesh);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsFieldDescriptorCompare(FmsFieldDescriptor,FmsFieldDescriptor);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsFieldCompare(FmsField,FmsField);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsMetaDataCompare(FmsMetaData,FmsMetaData);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsDomainCompare(FmsDomain,FmsDomain);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsComponentCompare(FmsComponent,FmsComponent);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsTagCompare(FmsTag,FmsTag);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

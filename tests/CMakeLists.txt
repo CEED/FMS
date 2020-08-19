@@ -26,8 +26,10 @@ function(fms_add_cpp_test)
     COMMAND ${arg_TEST} ${arg_ARGS})
 
   # Add any test properties that were given to the function
-  set_tests_properties(${arg_TEST}
-    PROPERTIES ${arg_PROPERTIES})
+  if("${arg_PROPERTIES}")
+    set_tests_properties(${arg_TEST}
+      PROPERTIES ${arg_PROPERTIES})
+  endif()
 
   # Make sure this test gets the Fms label, have todo it like this incase someone gave us other labels too
   get_test_property(${arg_TEST} LABELS ${arg_TEST}_LABELS)
@@ -46,4 +48,9 @@ endfunction()
 fms_add_cpp_test(
   TEST t_fms
   PROPERTIES
-    TIMEOUT 1)
+    TIMEOUT 1
+)
+
+fms_add_cpp_test(
+  TEST t_fmsio
+)

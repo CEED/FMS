@@ -2927,3 +2927,192 @@ int FmsMetaDataGetMetaData(FmsMetaData mdata, const char **mdata_name,
   if (data) { *data = mdata->data; }
   return 0;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Compare interface */
+/* -------------------------------------------------------------------------- */
+int FmsDataCollectionCompare(FmsDataCollection lhs, FmsDataCollection rhs) {
+    // Compare names
+    int diff = 0;
+    const char *lhs_name = NULL;
+    const char *rhs_name = NULL;
+    FmsDataCollectionGetName(lhs, &lhs_name);
+    FmsDataCollectionGetName(rhs, &rhs_name);
+    if(strcmp(lhs_name, rhs_name)) {
+        diff += 1;
+    }
+
+    // Compare mesh topologies
+    FmsMesh lhs_mesh = NULL, rhs_mesh = NULL;
+    FmsDataCollectionGetMesh(lhs, &lhs_mesh);
+    FmsDataCollectionGetMesh(rhs, &rhs_mesh);
+    if(FmsMeshCompare(lhs_mesh, rhs_mesh)) {
+        diff += 10;
+    }
+
+    // Compare FieldDescriptors
+    FmsFieldDescriptor *lhs_fds = NULL, *rhs_fds = NULL;
+    FmsInt lhs_nfds = 0, rhs_nfds = -1;
+    FmsDataCollectionGetFieldDescriptors(lhs, &lhs_fds, &lhs_nfds);
+    FmsDataCollectionGetFieldDescriptors(rhs, &rhs_fds, &rhs_nfds);
+    if(lhs_nfds != rhs_nfds) {
+        diff += 100;
+    }
+    else {
+        for(FmsInt i = 0; i < lhs_nfds; i++) {
+            if(FmsFieldDescriptorCompare(lhs_fds[i], rhs_fds[i])) {
+                diff += 100;
+            }
+        }
+    }
+
+    // Compare Fields
+    FmsField *lhs_fields = NULL, *rhs_fields = NULL;
+    FmsInt lhs_nfields = 0, rhs_nfields = -1;
+    FmsDataCollectionGetFields(lhs, &lhs_fields, &lhs_nfields);
+    FmsDataCollectionGetFields(rhs, &rhs_fields, &rhs_nfields);
+    if(lhs_nfds != rhs_nfds) {
+        diff += 1000;
+    }
+    else {
+        for(FmsInt i = 0; i < lhs_nfds; i++) {
+            if(FmsFieldCompare(lhs_fields[i], rhs_fields[i])) {
+                diff += 1000;
+            }
+        }
+    }
+
+    // Compare MetaData
+    FmsMetaData lhs_md = NULL, rhs_md = NULL;
+    FmsDataCollectionGetMetaData(lhs, &lhs_md);
+    FmsDataCollectionGetMetaData(rhs, &rhs_md);
+    if(FmsMetaDataCompare(lhs_md, rhs_md)) {
+        diff += 10000;
+    }
+    return diff;
+}
+
+int FmsMeshCompare(FmsMesh lhs, FmsMesh rhs) {
+    if(lhs == rhs) return 0;
+    if(!lhs) return -1;
+    if(!rhs) return -2;
+    int diff = 0;
+    // Compare domain names size
+    FmsInt lhs_ndnames = 0, rhs_ndnames = -1;
+    FmsMeshGetNumDomainNames(lhs, &lhs_ndnames);
+    FmsMeshGetNumDomainNames(rhs, &rhs_ndnames);
+
+    // Compare domain names & domains
+    if(lhs_ndnames != rhs_ndnames) {
+        diff += 1;
+    }
+    else {
+        for(FmsInt i = 0; i < lhs_ndnames; i++) {
+            const char *lhs_dname = NULL, *rhs_dname = NULL;
+            FmsInt lhs_ndomains = 0, rhs_ndomains = -1;
+            FmsDomain *lhs_domains = NULL, *rhs_domains = NULL;
+            FmsMeshGetDomains(lhs, i, &lhs_dname, &lhs_ndomains, &lhs_domains);
+            FmsMeshGetDomains(rhs, i, &rhs_dname, &rhs_ndomains, &rhs_domains);
+            if(strcmp(lhs_dname, rhs_dname)) {
+                diff += 10;
+                continue;
+            }
+            if(lhs_ndomains != rhs_ndomains) {
+                diff += 10;
+                continue;
+            }
+            for(FmsInt j = 0; j < lhs_ndnames; j++) {
+                if(FmsDomainCompare(lhs_domains[j], rhs_domains[j])) {
+                    diff += 100;
+                }
+            }
+        }
+    }
+
+    // Compare components
+    FmsInt lhs_ncomponents = 0, rhs_ncomponents = -1;
+    FmsMeshGetNumComponents(lhs, &lhs_ncomponents);
+    FmsMeshGetNumComponents(rhs, &rhs_ncomponents);
+    if(lhs_ncomponents != rhs_ncomponents) {
+        diff += 1000;
+    }
+    else {
+        for(FmsInt i = 0; i < lhs_ncomponents; i++) {
+            FmsComponent lhs_component = NULL, rhs_component = NULL;
+            FmsMeshGetComponent(lhs, i, &lhs_component);
+            FmsMeshGetComponent(rhs, i, &rhs_component);
+            if(FmsComponentCompare(lhs_component, rhs_component)) {
+                diff += 1000;
+            }
+        }
+    }
+
+    // Compare tags
+    FmsInt lhs_ntags = 0, rhs_ntags = -1;
+    FmsMeshGetNumTags(lhs, &lhs_ntags);
+    FmsMeshGetNumTags(rhs, &rhs_ntags);
+    if(lhs_ntags != rhs_ntags) {
+        diff += 10000;
+    }
+    else {
+        for(FmsInt i = 0; i < lhs_ntags; i++) {
+            FmsTag lhs_tag = NULL, rhs_tag = NULL;
+            FmsMeshGetTag(lhs, i, &lhs_tag);
+            FmsMeshGetTag(rhs, i, &rhs_tag);
+            if(FmsTagCompare(lhs_tag, rhs_tag)) {
+                diff += 10000;
+            }
+        }
+    }
+
+    // Q: Should we actually compare PartitionId?
+    //  I feel like if two meshes identical meshes came from two different partitions
+    //  then we should say they are equal.
+    // FmsMeshGetPartitionId
+    return diff;
+}
+
+int FmsFieldDescriptorCompare(FmsFieldDescriptor lhs, FmsFieldDescriptor rhs) {
+  if(lhs == rhs) return 0;
+  if(!lhs) return -1;
+  if(!rhs) return -2;
+  
+  
+  return 1;
+}
+
+int FmsFieldCompare(FmsField lhs, FmsField rhs) {
+    return 1;
+}
+
+int FmsMetaDataCompare(FmsMetaData lhs, FmsMetaData rhs) {
+    if(lhs == rhs) return 0;
+    if(!lhs) return -1;
+    if(!rhs) return -2;
+
+
+    return 3;
+}
+
+int FmsDomainCompare(FmsDomain lhs, FmsDomain rhs) {
+    if(lhs == rhs) return 0;
+    if(!lhs) return -1;
+    if(!rhs) return -2;
+
+    return 3;
+}
+
+int FmsComponentCompare(FmsComponent lhs, FmsComponent rhs) {
+    if(lhs == rhs) return 0;
+    if(!lhs) return -1;
+    if(!rhs) return -2;
+    return 3;
+}
+
+int FmsTagCompare(FmsTag lhs, FmsTag rhs) {
+    if(lhs == rhs) return 0;
+    if(!lhs) return -1;
+    if(!rhs) return -2;
+    
+    return 3;
+}
