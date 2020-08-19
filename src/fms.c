@@ -2764,7 +2764,7 @@ int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
 /* FmsDataCollection functions: query interface */
 /* -------------------------------------------------------------------------- */
 
-int FmsDataCollectionGetName(FmsDataCollection dc, char **name) {
+int FmsDataCollectionGetName(FmsDataCollection dc, const char **name) {
   if (!dc) { E_RETURN(1); }
   if (!name) { E_RETURN(2); }
   *name = dc->name;

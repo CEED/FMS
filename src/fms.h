@@ -792,7 +792,7 @@ int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
            freed or modified.
 @return 0 on success, non-zero otherwise.
 */
-int FmsDataCollectionGetName(FmsDataCollection dc, char **name);
+int FmsDataCollectionGetName(FmsDataCollection dc, const char **name);
 
 /// TODO: dox
 int FmsDataCollectionGetMesh(FmsDataCollection dc, FmsMesh *mesh);

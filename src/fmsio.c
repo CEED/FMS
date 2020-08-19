@@ -2820,7 +2820,7 @@ FmsIOWriteFmsDataCollection(FmsIOContext *ctx, FmsIOFunctions *io,
   FmsMetaData md;
   FmsInt num_fds = 0, num_fields = 0;
   FmsInt i;
-  char *name = NULL;
+  const char *name = NULL;
 
   /** NOTE: FmsDataCollection does not provide a method to get the name. We need one. */
   if(FmsDataCollectionGetName(dc, &name) == 0) {
