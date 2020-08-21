@@ -18,7 +18,7 @@ function(fms_add_cpp_test)
 
   # Create the executable and link it to anything the test depends on
   add_executable(${arg_TEST} ${arg_TEST}.cpp ${arg_SOURCES})
-  target_link_libraries(${arg_TEST} PRIVATE fms gtest_main ${arg_DEPENDS})
+  target_link_libraries(${arg_TEST} PRIVATE fms_testing_common fms gtest_main ${arg_DEPENDS})
 
   # Add the actual test to "make test" with optional command line arguments
   add_test(
@@ -44,6 +44,11 @@ function(fms_add_cpp_test)
   endif()
 endfunction()
 # ------------------------------------------------------------------------
+
+# Add FmsBaselines
+add_library(fms_testing_common STATIC fmstesting.hpp fmstesting.cpp)
+target_link_libraries(fms_testing_common PUBLIC fms)
+target_include_directories(fms_testing_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 fms_add_cpp_test(
   TEST t_fms
