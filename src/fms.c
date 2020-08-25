@@ -2945,7 +2945,7 @@ static inline double FmsAbs(const double x) {
     OUT_FmsInt_isdifferent = 0; \
     for(FmsInt i = 0; i < N; i++) { \
       if(FmsAbs(lhs_data[i] - rhs_data[i]) > 1e-6) { \
-        OUT_FmsInt_isdifferent = i; \
+        OUT_FmsInt_isdifferent = i+1; \
         break; \
       } \
     } \
@@ -2959,7 +2959,7 @@ static inline double FmsAbs(const double x) {
     OUT_FmsInt_isdifferent = 0; \
     for(FmsInt i = 0; i < N; i++) { \
       if(lhs_data[i] != rhs_data[i]) { \
-        OUT_FmsInt_isdifferent = i; \
+        OUT_FmsInt_isdifferent = i+1; \
         break; \
       } \
     } \
@@ -3229,7 +3229,7 @@ int FmsFieldDescriptorCompare(FmsFieldDescriptor lhs, FmsFieldDescriptor rhs) {
     else if(!rhs->component)
       diff += 5000000;
   }
- 
+
   return diff;
 }
 
@@ -3339,11 +3339,11 @@ int FmsMetaDataCompare(FmsMetaData lhs, FmsMetaData rhs) {
           diff += 100;
 
         if(diff == 0) {
-          FmsMetaData ldata = (FmsMetaData)lhs->data;
-          FmsMetaData rdata = (FmsMetaData)rhs->data;
+          FmsMetaData *ldata = (FmsMetaData*)lhs->data;
+          FmsMetaData *rdata = (FmsMetaData*)rhs->data;
           const FmsInt NE = lhs->num_entries;
           for(FmsInt i = 0; i < NE; i++) {
-            diff += FmsMetaDataCompare(&ldata[i], &rhs[i]);
+            diff += FmsMetaDataCompare(ldata[i], rdata[i]);
             if(diff)
               break;
           }
