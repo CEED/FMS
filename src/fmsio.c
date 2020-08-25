@@ -3028,13 +3028,25 @@ FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
   if(!md) E_RETURN(1);
   if(!minfo) E_RETURN(2);
   switch(minfo->mdtype) {
-  case FMS_INTEGER:
+  case FMS_INTEGER: {
+    void *data = NULL;
     FmsMetaDataSetIntegers(md, minfo->name, minfo->i_type, minfo->size,
-                           minfo->data);
+                           &data);
+    if(data)
+      memcpy(data, minfo->data, FmsIntTypeSize[minfo->i_type]*minfo->size);
+    else
+      E_RETURN(3);
     break;
-  case FMS_SCALAR:
-    FmsMetaDataSetScalars(md, minfo->name, minfo->s_type, minfo->size, minfo->data);
+  }
+  case FMS_SCALAR: {
+    void *data = NULL;
+    FmsMetaDataSetScalars(md, minfo->name, minfo->s_type, minfo->size, &data);
+    if(data)
+      memcpy(data, minfo->data, FmsScalarTypeSize[minfo->s_type]*minfo->size);
+    else
+      E_RETURN(4);
     break;
+  }
   case FMS_STRING:
     FmsMetaDataSetString(md, minfo->name, (const char*)minfo->data);
     break;
@@ -3044,13 +3056,17 @@ FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
     FmsMetaData *child = NULL;
     FmsIOMetaDataInfo *mds = (FmsIOMetaDataInfo*)minfo->data;
     FmsMetaDataSetMetaData(md, minfo->name, minfo->size, &child);
-    for(i = 0; i < minfo->size; ++i)
-      FmsIOBuildFmsMetaData(child[i], &mds[i]);
+    if(child) {
+      for(i = 0; i < minfo->size; ++i)
+        FmsIOBuildFmsMetaData(child[i], &mds[i]);
+    }
+    else
+      E_RETURN(5);
   }
   break;
   default:
     // Corrupt mdtype
-    E_RETURN(3);
+    E_RETURN(6);
     break;
   }
   return 0;
