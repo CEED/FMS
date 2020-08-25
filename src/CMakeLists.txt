@@ -31,6 +31,7 @@ target_include_directories(fms PUBLIC
 if(FMS_HAVE_CONDUIT)
   target_link_libraries(fms PRIVATE conduit::conduit)
   target_compile_definitions(fms PRIVATE FMS_HAVE_CONDUIT=1)
+  set_target_properties(fms PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
 # Install main fms library
