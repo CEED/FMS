@@ -41,21 +41,3 @@ install(EXPORT fms
   DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms
   NAMESPACE fms::
   FILE fms.cmake)
-
-# Setup fms-mfem library which ultimately may not live in this repo
-# if(FMS_HAVE_MFEM)
-#   add_library(fms-mfem fms-mfem.cpp fms-mfem.h)
-#   set_property(TARGET fms-mfem PROPERTY CXX_STANDARD 11)
-#   target_include_directories(fms-mfem 
-#     PUBLIC
-#       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-#       $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include)
-#   target_link_libraries(fms-mfem PUBLIC mfem)
-
-#   install(TARGETS fms-mfem DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT fms-mfem)
-#   install(FILES fms-mfem.h DESTINATION include)
-#   install(EXPORT fms-fmem 
-#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms
-#     NAMESPACE fms::
-#     FILE fms-mfem.cmake)
-# endif()
