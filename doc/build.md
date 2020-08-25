@@ -46,3 +46,14 @@ make install
 ## Linking to Fms
 
 When installed Fms will create all of the files needed to link to it with CMake.
+There is an example of how todo this in examples/include-fms.
+After installing Fms you can run the following command to test this:
+
+```sh
+cd examples/include-fms
+mkdir build
+cd build
+cmake -DFMS_DIR=*fms/install/prefix* ..
+make
+./main
+```
