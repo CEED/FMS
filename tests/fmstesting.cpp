@@ -294,67 +294,6 @@ int Construct3DData1(FmsDataCollection *out_dc) {
     return 0;
 }
 
-#if 0
-int Construct3DData2(FmsDataCollection *out_dc) {
-    if(!out_dc) return 1;
-    FmsMesh mesh = NULL;
-    FmsMeshConstruct(&mesh);
-    FmsMeshSetPartitionId(mesh, 0, 1);
-    FmsDomain *domain;
-    FmsMeshAddDomains(mesh, "domains", 1, &domain);
-    FmsDomainSetNumVertices(domain[0], 8);
-    const int edge_vert[] = {0,1, 2,3, 4,5, 6,7, // <1,0,0>
-                            0,2, 1,3, 4,6, 5,7,  // <0,1,0>
-                            0,4, 1,5, 2,6, 3,7, // <0,0,1>
-                            2,1, 4,7, 2,4, 1,7, 4,1, 2,7};
-    FmsDomainSetNumEntities(domain[0], FMS_EDGE, FMS_INT32, 36);
-    FmsDomainAddEntities(domain[0], FMS_EDGE, NULL, FMS_INT32, edge_vert, 18);
-    const int tri_edge[] = { 4,12,0, 1,5,12, 6,13,3, 2,7,13,
-        10,14,6, 4,8,14, 9,15,7, 5,11,15, 0,16,8, 9,2,16, 1,17,11, 10,3,17,
-        12,14,16, 17,13,14, 12,15,7, 15,13,16};
-    FmsDomainSetNumEntities(domain[0], FMS_TRIANGLE, FMS_INT32, 16);
-    FmsDomainAddEntities(domain[0], FMS_TRIANGLE, NULL, FMS_INT32, tri_edge, 16);
-    const int tet_face[] = {0,5,8,12, 2,4,11,13, 3,6,9,16, 1,7,10,17};
-    FmsDomainSetNumEntities(domain[0], FMS_TETRAHEDRON, FMS_INT32, 4);
-    FmsDomainAddEntities(domain[0], FMS_TETRAHEDRON, NULL, FMS_INT32, tet_face, 4);
-    FmsComponent volume;
-    FmsMeshAddComponent(mesh, "volume", &volume);
-    FmsComponentAddDomain(volume, domain[0]);
-    FmsComponent boundary;
-    FmsMeshAddComponent(mesh, "boundary", &boundary);
-    FmsInt part_id;
-    FmsComponentAddPart(boundary, domain[0], &part_id);
-    const int bdr_face[] = {0,2,4};
-    FmsComponentAddPartEntities(boundary, part_id, FMS_QUADRILATERAL, FMS_INT32,
-                                FMS_INT32, FMS_INT32, NULL, bdr_face, NULL, 3);
-    FmsComponentAddRelation(volume, 1); // 1 = index of "boundary" component
-    FmsMeshFinalize(mesh);
-    FmsMeshValidate(mesh);
-    FmsDataCollection dc = NULL;
-    FmsDataCollectionCreate(mesh, "data collection", &dc);
-    FmsFieldDescriptor coords_fd;
-    FmsDataCollectionAddFieldDescriptor(dc, "coords descriptor", &coords_fd);
-    FmsFieldDescriptorSetComponent(coords_fd, volume);
-    FmsInt coords_order = 1;
-    FmsFieldDescriptorSetFixedOrder(coords_fd, FMS_CONTINUOUS,
-                                    FMS_NODAL_GAUSS_CLOSED, coords_order);
-    FmsField coords;
-    FmsDataCollectionAddField(dc, "coords", &coords);
-    const double coords_data[] = {
-        -1,-1,-1, 1,-1,-1, -1,1,-1, 1,1,-1,
-        -1,-1,1,  1,-1,1,  -1,1,1,  1,1,1};
-    FmsInt sdim = 3;
-    FmsFieldSet(coords, coords_fd, sdim, FMS_BY_VDIM, FMS_DOUBLE, coords_data);
-    FmsComponentSetCoordinates(volume, coords);
-    *out_dc = dc;
-#ifdef PRINT_DATASETS
-    FmsIOWrite("3DData2.fms", "ascii", dc);
-#endif
-    *out_dc = dc;
-    return 0;
-}
-#endif
-
 int ConstructAllDataCollections(FmsInt *size, FmsDataCollection **out_dcs) {
     if(!size) return 1;
     if(!out_dcs) return 2;
