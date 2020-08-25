@@ -99,3 +99,22 @@ TEST(FmsIO, WriteReadSilo) {
     std::free(dcs);
 }
 #endif
+
+TEST(FmsIO, WriteReadAutoDetect) {
+    FmsDataCollection dc = NULL;
+    ASSERT_EQ(Construct2DData0(&dc), 0);
+    ASSERT_TRUE(dc);
+    const char *protocols[4] = {
+        "ascii", "json", "yaml", "hdf5"
+    };
+    for(int i = 0; i < 4; i++) {
+        ASSERT_EQ(FmsIOWrite("TestAuto.fms", protocols[i], dc), 0);
+        FmsDataCollection read_dc = NULL;
+        ASSERT_EQ(FmsIORead("TestAuto.fms", NULL, &read_dc), 0);
+        ASSERT_TRUE(read_dc);
+        EXPECT_EQ(FmsDataCollectionCompare(dc, read_dc), 0);
+        EXPECT_EQ(FmsDataCollectionCompare(read_dc, dc), 0);
+        FmsDataCollectionDestroy(&read_dc);
+    }
+    FmsDataCollectionDestroy(&dc);
+}
