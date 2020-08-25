@@ -25,7 +25,10 @@ if (FMS_ENABLE_DEMO)
 
   add_executable(demo_pumi_mfem demo_pumi_mfem.cpp)
   target_include_directories(demo_pumi_mfem PUBLIC ${MFEM_INCLUDE_DIRS})
-  target_link_libraries(demo_pumi_mfem fms SCOREC::core mfem MPI::MPI_CXX)
+  target_link_libraries(demo_pumi_mfem SCOREC::core mfem MPI::MPI_CXX)
+  if (NOT MFEM_USE_FMS)
+    target_link_libraries(demo_pumi_mfem fms)
+  endif()
 
   # Fetch the data directory, if necessary
   file(GLOB data_files "${PROJECT_SOURCE_DIR}/data/*")

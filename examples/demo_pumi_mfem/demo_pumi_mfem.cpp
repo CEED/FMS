@@ -45,8 +45,8 @@ int main(int argc, char *argv[]) {
   gmi_register_mesh();
 
   // Load pumi mesh
-  const char *mesh_file = "../data/pumi/serial/pillbox.smb";
-  const char *model_file = "../data/pumi/geom/pillbox.dmg";
+  const char *mesh_file = "../../data/pumi/serial/pillbox.smb";
+  const char *model_file = "../../data/pumi/geom/pillbox.dmg";
   apf::Mesh2* pumi_mesh;
   pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
 

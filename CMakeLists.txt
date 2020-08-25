@@ -44,17 +44,7 @@ if(CONDUIT_DIR)
   message(STATUS "Using Conduit: ${Conduit_DIR}")
 endif()
 
-# For development of the fms-mfem library, will move eventually (still required by demo)
-if(MFEM_DIR)
-  find_package(MFEM REQUIRED
-    NAMES MFEM mfem
-    HINTS ${MFEM_DIR}
-    NO_DEFAULT_PATH)
-  set(FMS_HAVE_MFEM TRUE)
-  message(STATUS "Using MFEM: ${MFEM_DIR}")
-endif()
-
-# The following are required for the example
+# The following are required for the demo
 if(FMS_ENABLE_DEMO)
   if(CMAKE_VERSION VERSION_LESS 3.10)
     message(FATAL_ERROR "Building the demo requires CMake version 3.10 or later, please rerun cmake with FMS_ENABLE_DEMO=OFF")
@@ -65,6 +55,16 @@ if(FMS_ENABLE_DEMO)
   # message(STATUS "Demo using MPI_C: ${MPI_C_COMPILER}")
   message(STATUS "Demo using MPI_CXX: ${MPI_CXX_COMPILER}")
   set(FMS_HAVE_MPI TRUE)
+
+  if(MFEM_DIR)
+    find_package(MFEM REQUIRED
+      NAMES MFEM mfem
+      HINTS ${MFEM_DIR}
+      NO_DEFAULT_PATH)
+    set(FMS_HAVE_MFEM TRUE)
+    message(STATUS "Demo using MFEM: ${MFEM_DIR}")
+    message(STATUS "MFEM_VERSION = ${MFEM_VERSION}")
+  endif()
 
   if(PUMI_DIR)
     find_package(SCOREC 2.1.0 REQUIRED 
