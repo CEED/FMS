@@ -1,9 +1,13 @@
 # Building FMS
 
-FMS requires CMake (atleast version 3.1) and a C99 compiler to build.
+FMS requires CMake (atleast version 3.1) and a C99 compiler to build. 
+The tests and demo (both optional) will require a C++11 compiler to build. 
+Lastly the demo (optional) requires CMake 3.10 or newer for CMake's improved FindMPI support.
 
-Optionally Conduit can be linked in to use conduit_relay for FmsIO operations. 
-This enables FmsIO to write conduit binary or other conduit_relay supported protocols.
+Optionally Conduit can be linked in to use conduit_relay_io for FmsIO operations. 
+This will enable FmsIO to write using "json","yaml","conduit_bin", and "hdf5" protocols. 
+
+(NOTE: You will have to build Conduit with HDF5 support to use the HDF5 protocol)
 
 ## Default configuration
 
@@ -46,7 +50,7 @@ make install
 ## Linking to Fms
 
 When installed Fms will create all of the files needed to link to it with CMake.
-There is an example of how todo this in examples/include-fms.
+There is an example of how to do this in examples/include-fms.
 After installing Fms you can run the following command to test this:
 
 ```sh
