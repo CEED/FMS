@@ -31,9 +31,11 @@ extern "C" {
 @param protocol The type of file to be saved. By default, the protocol
                 should be "ascii". If FMS is compiled with Conduit support then
                 the protocol can match the supported Conduit protocols, which
-                can include: "json", "yaml", "silo", "hdf5".
+                can include: "json", "yaml", "conduit_bin", "hdf5".
 @param dc       The FMS object that will be written to the file.
-@return The function returns 0 on success and non-zero for failure.
+@return The function returns 0 on success and non-zero for failure. 
+        If Conduit support is enabled then a return value of 2 indicates the 
+        given protocol is unsupported by the Conduit runtime.
 */
 int FmsIOWrite(const char *filename, const char *protocol,
                FmsDataCollection dc);
@@ -44,11 +46,14 @@ int FmsIOWrite(const char *filename, const char *protocol,
 @param protocol The type of file to be read. By default, the protocol
                 should be "ascii". If FMS is compiled with Conduit support then
                 the protocol can match the supported Conduit protocols, which
-                can include: "json", "yaml", "silo", "hdf5". Adding a protocol
+                can include: "json", "yaml", "conduit_bin", "hdf5". Adding a protocol
                 will help FMS and Conduit decide which method is appropriate for
-                reading the file.
+                reading the file. If Conduit support is enabled and protocol is NULL
+                an educated guess will be made for which protocol to use.
 @param[out] dc  The FMS object that was read from the file.
 @return The function returns 0 on success and non-zero for failure.
+        If Conduit support is enabled then a return value of 2 indicates the 
+        given protocol is unsupported by the Conduit runtime.
 */
 int FmsIORead(const char *filename, const char *protocol,
               FmsDataCollection *dc);

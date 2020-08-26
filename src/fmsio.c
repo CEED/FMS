@@ -24,6 +24,7 @@
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
+#include <ctype.h>
 
 #ifdef FMS_HAVE_CONDUIT
 #include <conduit.h>
@@ -100,6 +101,16 @@ static inline int FmsIOCopyString(const char *str, char **str_copy_p) {
   char *str_copy = strdup(str);
   if (str_copy == NULL) { return 1; }
   *str_copy_p = str_copy;
+  return 0;
+}
+
+// Make sure dst is large enough to hold N + 1 chars. N should be strlen(str) to convert an entire string.
+static inline int FmsIOStringToLower(const char *src, const size_t N, char *dst) {
+  if(!dst) return 1;
+  if(!src) dst[0] = '\0';
+  for(size_t i = 0; i < N; i++)
+    dst[i] = (char)tolower(src[i]);
+  dst[N] = '\0';
   return 0;
 }
 
@@ -1450,13 +1461,14 @@ FmsIOConduitError(const char *msg, const char *srcfile, int line) {
 static void
 FmsIOContextInitializeConduit(FmsIOContext *ctx, const char *protocol) {
   if(ctx) {
-    int i;
-
     ctx->filename = NULL;
     ctx->root = NULL;
     ctx->writing = 0;
     /* Store the protocol this way since we do not pass it to the open function */
-    ctx->protocol = protocol ? strdup(protocol) : strdup("json");
+    size_t plen = strlen(protocol);
+    char *plower = malloc(sizeof(char)*plen+1);
+    FmsIOStringToLower(protocol, plen, plower);
+    ctx->protocol = plower;
 
     /* Install some error handlers for Conduit. */
     conduit_utils_set_info_handler(FmsIOConduitInformation);
@@ -1489,6 +1501,49 @@ FmsIOFunctionsInitializeConduit(FmsIOFunctions *obj) {
     obj->get_scalar_array = FmsIOGetScalarArrayConduit;
     obj->get_string = FmsIOGetStringConduit;
   }
+}
+
+// Returns negative if there was an error checking support
+// Returns 0 if there was no error but the protocol is not ascii or conduit supported
+// Returns 1 if the protocol is supported by conduit
+// Returns 2 if the protocol is "ascii"
+static int CheckProtocolSupportConduit(const char *protocol) {
+  if(!protocol) return -1;
+  char plower[24];
+  size_t plen = strlen(protocol);
+  // Our buffer only holds 24 chars (longest name is only 20 chars)
+  if(plen > 23) {
+    return -2;
+  }
+  // Convert the string to lowercase before comparing
+  FmsIOStringToLower(protocol, plen, plower);
+
+  if(strcmp("ascii", plower) == 0)
+    return 2;
+
+  conduit_node *details = conduit_node_create();
+  conduit_relay_io_about(details);
+  int retval = 0;
+  if(conduit_node_has_child(details, "protocols")) {
+    conduit_node *protocols = conduit_node_fetch(details, "protocols");
+    conduit_index_t nchild = conduit_node_number_of_children(protocols);
+    for(conduit_index_t i = 0; i < nchild; i++) {
+      conduit_node *child = conduit_node_child(protocols, i);
+      char *key = conduit_node_name(child); // We have to free key but not value
+      const char *value = conduit_node_as_char8_str(child);
+      if(strcmp("enabled", value) == 0) {
+        if(strcmp(plower, key) == 0) {
+          retval = 1;
+        }
+      }
+      free(key);
+      if(retval) break;
+    }
+  } else {
+    retval = -3;
+  }
+  conduit_node_destroy(details);
+  return retval;
 }
 
 
@@ -3425,6 +3480,7 @@ FmsIODestroyFmsIODataCollectionInfo(FmsIODataCollectionInfo *dc_info) {
   return 0;
 }
 
+
 /*****************************************************************************
 *** FMS Public Functions
 *****************************************************************************/
@@ -3438,16 +3494,18 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc) {
   if(protocol == NULL) protocol = "ascii";
 
 #ifdef FMS_HAVE_CONDUIT
-  /* Conduit has a function to enumerate its protocols that it supports. Use that later. */
-  if(strcmp(protocol, "json") == 0 ||
-      strcmp(protocol, "yaml") == 0 ||
-      strcmp(protocol, "hdf5") == 0 ||
-      strcmp(protocol, "silo") == 0) {
+  int isSupported = CheckProtocolSupportConduit(protocol);
+  if(isSupported == 1) {
     FmsIOContextInitializeConduit(&ctx, protocol);
     FmsIOFunctionsInitializeConduit(&io);
-  } else {
+  } else if(isSupported == 2) {
     FmsIOContextInitialize(&ctx);
     FmsIOFunctionsInitialize(&io);
+  } else if(isSupported == 0) {
+    // fprintf(stderr, "The protocol %s is not supported by this Conduit runtime.", protocol);
+    return 2;
+  } else {
+    E_RETURN(3);
   }
 #else
   FmsIOContextInitialize(&ctx);
@@ -3459,19 +3517,19 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc) {
     if((*io.add_int)(&ctx, "FMS", (int)FMS_INTERFACE_VERSION) != 0) {
       /* "close" the file. */
       (*io.close)(&ctx);
-      E_RETURN(4);
+      E_RETURN(5);
     }
 
     if(FmsIOWriteFmsDataCollection(&ctx, &io, "DataCollection", dc) != 0) {
       /* "close" the file. */
       (*io.close)(&ctx);
-      E_RETURN(5);
+      E_RETURN(6);
     }
 
     if((*io.close)(&ctx) != 0)
-      E_RETURN(6);
+      E_RETURN(7);
   } else {
-    E_RETURN(3);
+    E_RETURN(4);
   }
 
   return 0;
@@ -3502,6 +3560,21 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc) {
           protocol = "yaml";
         else if(H[0] == 137 && H[1] == 'H' && H[2] == 'D' && H[3] == 'F')
           protocol = "hdf5";
+        else {
+          // Maybe it's conduit_bin, which would have a supporting filename + "_json" file
+          const char *ext = "_json";
+          const size_t fname_len = strlen(filename);
+          const size_t json_fname_size = fname_len + strlen(ext) + 1;
+          char *json_fname = malloc(sizeof(char) * json_fname_size);
+          strncpy(json_fname, filename, fname_len+1);
+          strcat(json_fname, ext);
+          FILE *json_f = fopen(json_fname, "r");
+          if(json_f) {
+            fclose(json_f);
+            protocol = "conduit_bin";
+          }
+          free(json_fname);
+        }
       }
       fclose(f);
     }
@@ -3511,15 +3584,18 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc) {
     }
   }
 
-  if(strcmp(protocol, "json") == 0 ||
-      strcmp(protocol, "yaml") == 0 ||
-      strcmp(protocol, "hdf5") == 0 ||
-      strcmp(protocol, "silo") == 0) {
+  int isSupported = CheckProtocolSupportConduit(protocol);
+  if(isSupported == 1) {
     FmsIOContextInitializeConduit(&ctx, protocol);
     FmsIOFunctionsInitializeConduit(&io);
-  } else {
+  } else if(isSupported == 2) {
     FmsIOContextInitialize(&ctx);
     FmsIOFunctionsInitialize(&io);
+  } else if(isSupported == 0) {
+    // fprintf(stderr, "The protocol %s is not supported by this Conduit runtime.\n", protocol);
+    return 2;
+  } else {
+    E_RETURN(5);
   }
 #else
   FmsIOContextInitialize(&ctx);
@@ -3536,25 +3612,24 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc) {
     if(err != 0 || version != (int)FMS_INTERFACE_VERSION) {
       /* "close" the file. */
       (*io.close)(&ctx);
-      E_RETURN(5);
+      E_RETURN(6);
     }
 
     if(FmsIOReadFmsDataCollection(&ctx, &io, "DataCollection", dc_info) != 0) {
       /* "close" the file. */
       FmsIODestroyFmsIODataCollectionInfo(dc_info);
       (*io.close)(&ctx);
-      E_RETURN(6);
+      E_RETURN(7);
     }
 
     FmsIOBuildFmsDataCollection(dc_info, dc);
     FmsIODestroyFmsIODataCollectionInfo(dc_info);
 
-    if((*io.close)(&ctx) != 0)
-      E_RETURN(7);
+    if((*io.close)(&ctx) != 0) {
+      E_RETURN(8);
+    }
   } else {
     E_RETURN(4);
   }
-
-
   return 0;
 }
