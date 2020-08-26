@@ -112,19 +112,16 @@ int main(int argc, const char *argv[]) {
   if(argc > 1)
     FmsIOWrite("simple_mesh.fms", argv[1], dc);
   else
-    FmsIOWrite("simple_mesh.fms.ascii", NULL, dc);
+    FmsIOWrite("simple_mesh.fms", NULL, dc);
 
   FmsDataCollection new_dc = NULL;
-  if(argc > 1)
-    FmsIORead("simple_mesh.fms", argv[1], &new_dc);
-  else
-    FmsIORead("simple_mesh.fms.ascii", NULL, &new_dc);
+  FmsIORead("simple_mesh.fms", NULL, &new_dc);
 
   // Now write the new dc back out
   if(argc > 1)
     FmsIOWrite("simple_mesh2.fms", argv[1], new_dc);
   else
-    FmsIOWrite("simple_mesh2.fms.ascii", NULL, new_dc);
+    FmsIOWrite("simple_mesh2.fms", NULL, new_dc);
 
   if(new_dc)
     FmsDataCollectionDestroy(&new_dc);
