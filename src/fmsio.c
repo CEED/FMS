@@ -79,8 +79,8 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
           "Error code: %d\n"
           "Function:   %s\n"
           "File:       %s:%d\n\n"
-          "Aborting ...\n\n", err_code, func, file, line);
-  abort();
+          /*"Aborting ...\n\n"*/, err_code, func, file, line);
+  // abort();
 }
 #ifndef _MSC_VER
 #define FMS_PRETTY_FUNCTION __PRETTY_FUNCTION__
@@ -3492,6 +3492,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc) {
 
   if(filename == NULL) E_RETURN(1);
   if(protocol == NULL) protocol = "ascii";
+  if(!dc) E_RETURN(3);
 
 #ifdef FMS_HAVE_CONDUIT
   int isSupported = CheckProtocolSupportConduit(protocol);
@@ -3505,7 +3506,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc) {
     // fprintf(stderr, "The protocol %s is not supported by this Conduit runtime.", protocol);
     return 2;
   } else {
-    E_RETURN(3);
+    E_RETURN(4);
   }
 #else
   FmsIOContextInitialize(&ctx);
@@ -3517,19 +3518,19 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc) {
     if((*io.add_int)(&ctx, "FMS", (int)FMS_INTERFACE_VERSION) != 0) {
       /* "close" the file. */
       (*io.close)(&ctx);
-      E_RETURN(5);
+      E_RETURN(6);
     }
 
     if(FmsIOWriteFmsDataCollection(&ctx, &io, "DataCollection", dc) != 0) {
       /* "close" the file. */
       (*io.close)(&ctx);
-      E_RETURN(6);
+      E_RETURN(7);
     }
 
     if((*io.close)(&ctx) != 0)
-      E_RETURN(7);
+      E_RETURN(8);
   } else {
-    E_RETURN(4);
+    E_RETURN(5);
   }
 
   return 0;
