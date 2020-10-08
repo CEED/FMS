@@ -14,30 +14,14 @@
 # software, applications, hardware, advanced system engineering and early
 # testbed platforms, in support of the nation's exascale computing imperative.
 
-set(FMS_SOURCES fms.c fmsio.c)
-set(FMS_HEADERS fms.h fmsio.h)
+add_executable(domains domains.c)
+target_link_libraries(domains PRIVATE fms)
 
-add_library(fms ${FMS_SOURCES} ${FMS_HEADERS})
-set_target_properties(fms
-  PROPERTIES
-    C_STANDARD 99
-    C_EXTENSIONS OFF)
+add_executable(hexes hexes.c)
+target_link_libraries(hexes PRIVATE fms m)
 
-target_include_directories(fms PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<INSTALL_INTERFACE:$<INSTALL_PREFIX>/include>)
+add_executable(quads quads.c)
+target_link_libraries(quads PRIVATE fms m)
 
-# The IO functions will be optionally implemented with Conduit
-if(FMS_HAVE_CONDUIT)
-  target_link_libraries(fms PRIVATE conduit::conduit)
-  target_compile_definitions(fms PRIVATE FMS_HAVE_CONDUIT=1)
-  set_target_properties(fms PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-endif()
-
-# Install main fms library
-install(TARGETS fms DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT fms)
-install(FILES ${FMS_HEADERS} DESTINATION include)
-install(EXPORT fms 
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/fms
-  NAMESPACE fms::
-  FILE fms.cmake)
+add_executable(simple_mesh simple_mesh.c)
+target_link_libraries(simple_mesh PRIVATE fms)

@@ -56,6 +56,11 @@ typedef enum {
 
 extern const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES];
 
+extern const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES];
+
+/// Get the enum representation of an int type from the string name.
+int FmsGetIntTypeFromName(const char * const name, FmsIntType *type);
+
 /// TODO: dox
 /** A mesh consists of:
     * mesh domains
@@ -197,9 +202,10 @@ enum { FMS_INVALID_DIM = 127 };
     For FMS_HEXAHEDRON, the faces (sides), "ABCDEF", the edges, "abcdefghijkl"
     and the vertices, "01234567", are ordered as follows:
 
-              7--g--6
-             /|    /|
-            / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
+    z  y
+    | /       7--g--6
+    |/       /|    /|
+    *--x    / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
            h  |  f  |   bottom   top      front    back     left     right
           /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
          /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
@@ -227,6 +233,11 @@ typedef enum {
   // the next constant defines the number of entity types
   FMS_NUM_ENTITY_TYPES
 } FmsEntityType;
+
+/// String representations of each entity type.
+extern const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES];
+
+int FmsGetEntityTypeFromName(const char * const name, FmsEntityType *ent_type);
 
 /// Dimensions of the entity types.
 extern const FmsInt FmsEntityDim[FMS_NUM_ENTITY_TYPES];
@@ -307,6 +318,11 @@ typedef enum {
 
 extern const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES];
 
+extern const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES];
+
+/// Get the enum representation of an int type from the string name.
+int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type);
+
 /// TODO: dox
 typedef enum {
   FMS_FIXED_ORDER
@@ -343,8 +359,13 @@ typedef enum {
   FMS_INTEGER,
   FMS_SCALAR,
   FMS_STRING,
-  FMS_META_DATA
+  FMS_META_DATA,
+  FMS_NUM_METADATA_TYPES
 } FmsMetaDataType;
+
+extern const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES];
+
+int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type);
 
 /// TODO: dox
 /** A meta-data structure contains:
@@ -763,6 +784,17 @@ int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
                           const char *const **tag_descr, FmsInt *num_tags);
 
 /// TODO: dox
+/**
+@brief Get the name of the data collection.
+@param dc the data collection.
+@param[out] name A char pointer that will be set to point to the name string.
+           The name is owned by the data collection so it should not be
+           freed or modified.
+@return 0 on success, non-zero otherwise.
+*/
+int FmsDataCollectionGetName(FmsDataCollection dc, const char **name);
+
+/// TODO: dox
 int FmsDataCollectionGetMesh(FmsDataCollection dc, FmsMesh *mesh);
 
 /// TODO: dox
@@ -831,6 +863,27 @@ int FmsMetaDataGetString(FmsMetaData mdata, const char **mdata_name,
 int FmsMetaDataGetMetaData(FmsMetaData mdata, const char **mdata_name,
                            FmsInt *size, FmsMetaData **data);
 
+
+///
+/// Comparison interface
+///
+
+/// Return 0 if equivalent, not 0 otherwise
+int FmsDataCollectionCompare(FmsDataCollection,FmsDataCollection);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsMeshCompare(FmsMesh,FmsMesh);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsFieldDescriptorCompare(FmsFieldDescriptor,FmsFieldDescriptor);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsFieldCompare(FmsField,FmsField);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsMetaDataCompare(FmsMetaData,FmsMetaData);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsDomainCompare(FmsDomain,FmsDomain);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsComponentCompare(FmsComponent,FmsComponent);
+/// Return 0 if equivalent, not 0 otherwise
+int FmsTagCompare(FmsTag,FmsTag);
 
 #ifdef __cplusplus
 } // extern "C"

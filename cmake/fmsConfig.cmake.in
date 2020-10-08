@@ -1,0 +1,17 @@
+# To support all the features of find_dependency on older versions of CMake
+unset(extraArgs)
+if(${CMAKE_FIND_PACKAGE_NAME}_FIND_QUIETLY)
+  list(APPEND extraArgs QUIET)
+endif()
+if(${CMAKE_FIND_PACKAGE_NAME}_FIND_REQUIRED)
+  list(APPEND extraArgs REQUIRED)
+endif()
+
+set(FMS_HAVE_CONDUIT @FMS_HAVE_CONDUIT@)
+if(FMS_HAVE_CONDUIT)
+  find_package(Conduit
+    PATHS @CONDUIT_DIR@
+    ${extraArgs})
+endif()
+
+include(${CMAKE_CURRENT_LIST_DIR}/fms.cmake)

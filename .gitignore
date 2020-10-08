@@ -1,0 +1,9 @@
+build/
+data/
+
+# Binaries
+*.o
+*.out
+
+# IDE directories
+.vscode/

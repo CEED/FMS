@@ -35,10 +35,10 @@ And finally, build FMS and the demo:
 ```console
 mkdir build
 cd build
-cmake .. -DENABLE_DEMO=ON -DMPICXX=mpicxx \
-  -DPUMI_DIR=../../pumi-install -DMFEM_DIR=../../mfem-install
+cmake .. -DFMS_ENABLE_DEMO=ON -DMPICXX=mpicxx \
+  -DPUMI_DIR=$(pwd)/../../pumi-install -DMFEM_DIR=$(pwd)/../../mfem-install
 make
-cd examples
+cd examples/demo_pumi_mfem 
 ./demo_pumi_mfem
 ```
 The last step in the demo will send the mesh to [GLVis](http://glvis.org/) for visualization, if a GLVis server is running. GLVis can be cloned and built using the following commands, e.g. next to the FMS, PUMI, and MFEM directories (see the [glvis/INSTALL](https://github.com/GLVis/glvis/blob/master/INSTALL) file for additional required libraries):

@@ -2,6 +2,7 @@
 // Demo: converting a mesh from PUMI to FMS to MFEM
 //
 
+#include <mpi.h>
 #include <fms.h>
 #include <apf.h>
 #include <apfMesh.h>
@@ -16,8 +17,13 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <limits.h>
 #include <mfem.hpp>
 
+#define TEST_FMSIO
+#ifdef TEST_FMSIO
+#include <fmsio.h>
+#endif
 
 void TestMakeFmsQuadMesh(FmsDataCollection *dc_ptr);
 void TestMakeFmsTetMesh(FmsDataCollection *dc_ptr);
@@ -39,8 +45,8 @@ int main(int argc, char *argv[]) {
   gmi_register_mesh();
 
   // Load pumi mesh
-  const char *mesh_file = "../data/pumi/serial/pillbox.smb";
-  const char *model_file = "../data/pumi/geom/pillbox.dmg";
+  const char *mesh_file = "../../data/pumi/serial/pillbox.smb";
+  const char *model_file = "../../data/pumi/geom/pillbox.dmg";
   apf::Mesh2* pumi_mesh;
   pumi_mesh = apf::loadMdsMesh(model_file, mesh_file);
 
@@ -362,6 +368,14 @@ int main(int argc, char *argv[]) {
   // TestFmsToMfem(tet_dc);
   // TestFmsToMfem(hex_dc);
   TestFmsToMfem(CrdFieldDataCol);
+
+#ifdef TEST_FMSIO
+  const char *protocol = "ascii";
+  FmsIOWrite("quad.fms", protocol, quad_dc);
+  FmsIOWrite("tet.fms", protocol, tet_dc);
+  FmsIOWrite("hex.fms", protocol, hex_dc);
+  FmsIOWrite("CrdFieldDataCol.fms", protocol, CrdFieldDataCol);
+#endif
 
   // Clean-up
 

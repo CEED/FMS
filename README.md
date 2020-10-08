@@ -42,22 +42,13 @@ exchange and high-order visualization and data analysis.
 
 ## Building
 
-Build a _static_ version of FMS with the default _Release_ configuration:
+You can get started with the default build configuration using the command line listed below. Checkout the [build documentation](doc/build.md) for more info.
+
 ```console
 mkdir build
 cd build
 cmake ..
-make
-```
-
-Build and install a _shared_ version of FMS with _Debug_ configuration:
-```console
-mkdir build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=ON \
-  -DCMAKE_INSTALL_PREFIX=../install
-make
-make install
+make -j 2
 ```
 
 ## Contact
