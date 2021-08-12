@@ -251,7 +251,7 @@ compute_cells(const int *dims, int *ncells) {
 
   int F1 = (dims[0]-1)*(dims[1]-1)*dims[2];     /* back/front */
   int F2 = (dims[0]-1)*(dims[1])  *(dims[2]-1); /* bottom/top */
-  int F3 = (dims[0])  *(dims[1]-1)*(dims[2]-1); /* left/right */
+  // int F3 = (dims[0])  *(dims[1]-1)*(dims[2]-1); /* left/right */
 
   for(k = 0; k < dims[2]-1; k++)
     for(j = 0; j < dims[1]-1; j++)
@@ -337,7 +337,7 @@ double *
 append_coord_dofs_face(int order, double *dest, const double *verts,
                        const int *edges, const int *faces, int nfaces, double travel,
                        int component) {
-  int i,j,ii,jj,edge,e0,e2,v0,v1,v2,v3;
+  int i,ii,jj,e0,e2,v0,v1,v2,v3;
   double value, r,s, *ptr = dest;
   if(order >= 2) {
     for(i = 0; i < nfaces; ++i) {
@@ -377,7 +377,7 @@ append_coord_dofs_face(int order, double *dest, const double *verts,
 double *
 append_coord_dofs_cell(int order, double *dest, const int *dims,
                        const double *verts, double travel, int component) {
-  int i,j,k,ii,jj,kk,edge,v0,v1;
+  int i,j,k,ii,jj,kk;
   double r,s,t,value, *ptr = dest;
 #ifdef ADD_CELLS
   if(order >= 2) {
@@ -443,7 +443,7 @@ add_radial_scalar(FmsDataCollection dc, FmsComponent volume,
                   const int *faces, int nfaces,
                   int ncells) {
   int i, ndofs;
-  double *data, *coords, *cptr, *x, *y, *z;
+  double *data, *coords, *x, *y, *z;
   char fdname[100];
 
   /* Create a field descriptor for the coordinates that live on "surface". */

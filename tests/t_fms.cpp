@@ -1,5 +1,5 @@
 #include <fms.h>
-#include <fmstesting.hpp>
+#include "fmstesting.hpp"
 #include <gtest/gtest.h>
 
 TEST(Fms, Version) {

@@ -25,6 +25,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <ctype.h>
+#include <inttypes.h>
 
 #ifdef FMS_HAVE_CONDUIT
 #include <conduit.h>
@@ -42,23 +43,27 @@ do { \
 // NOTE: If set to 1 the last line will still have 2 entries.
 #define FMS_ELE_PER_LINE 3u
 
-#if UINT_MAX == ULONG_MAX
-#define FMS_LD "%lld"
-#define FMS_LU "%llu"
+// printf format string for FmsInt
+#define FMS_LU "%" PRIu64
+
+// Routine used for converting a string to FmsInt
+#if UINT64_MAX == ULLONG_MAX
+#define StrToFmsInt strtoull
+#elif UINT64_MAX == ULONG_MAX
+#define StrToFmsInt strtoul
 #else
-#define FMS_LD "%ld"
-#define FMS_LU "%lu"
+#error "unknown conversion routine for FmsInt"
 #endif
 
 #define FOR_EACH_INT_TYPE(macro)            \
-    macro(FMS_INT8, int8_t,     "%d")       \
-    macro(FMS_INT16, int16_t,   "%d")       \
-    macro(FMS_INT32, int32_t,   "%d")       \
-    macro(FMS_INT64, int64_t,   FMS_LD)    \
-    macro(FMS_UINT8, uint8_t,   "%u")       \
-    macro(FMS_UINT16, uint16_t, "%u")       \
-    macro(FMS_UINT32, uint32_t, "%u")       \
-    macro(FMS_UINT64, uint64_t, FMS_LU)
+    macro(FMS_INT8, int8_t,     "%" PRId8)  \
+    macro(FMS_INT16, int16_t,   "%" PRId16) \
+    macro(FMS_INT32, int32_t,   "%" PRId32) \
+    macro(FMS_INT64, int64_t,   "%" PRId64) \
+    macro(FMS_UINT8, uint8_t,   "%" PRIu8)  \
+    macro(FMS_UINT16, uint16_t, "%" PRIu16) \
+    macro(FMS_UINT32, uint32_t, "%" PRIu32) \
+    macro(FMS_UINT64, uint64_t, "%" PRIu64)
 
 #define FOR_EACH_SCALAR_TYPE(macro)         \
     macro(FMS_FLOAT, float,   "%f")         \
@@ -114,13 +119,6 @@ static inline int FmsIOStringToLower(const char *src, const size_t N, char *dst)
   return 0;
 }
 
-// Return m=2^k, k-integer, such that: m >= n > m/2
-static inline FmsInt NextPow2(FmsInt n) {
-  FmsInt m = 1;
-  while (m < n) { m *= 2; }
-  return m;
-}
-
 /**
 Data structures.
 */
@@ -173,7 +171,7 @@ typedef struct {
   union {
     FmsIntType i_type;
     FmsScalarType s_type;
-  };
+  } subtype;
   const char *name;
   FmsInt size;
   void *data;
@@ -520,7 +518,6 @@ FmsIOReadKeyValue(FmsIOContext *ctx, char *key, char *value) {
 
   // After the ':' is a space then the value starts
   if(value) {
-    N = 0;
     N = strlen(key_end+2);
     if(N >= FMS_BUFFER_SIZE)
       E_RETURN(5);
@@ -535,7 +532,6 @@ FmsIOReadKeyValue(FmsIOContext *ctx, char *key, char *value) {
 static int
 FmsIOHasPath(FmsIOContext *ctx, const char *path) {
   int err = 0;
-  long curr_loc = 0;
   char k[FMS_BUFFER_SIZE];
   if(!ctx) E_RETURN(1);
   if(!path) E_RETURN(2);
@@ -582,20 +578,12 @@ FmsIOGetInt(FmsIOContext *ctx, const char *path, FmsInt *value) {
   if(strcmp(k, path))
     E_RETURN(5);
 
-#if UINT_MAX == ULONG_MAX
-  *value = strtoull(v, NULL, 10);
-#else
-  *value = strtoul(v, NULL, 10);
-#endif
+  *value = StrToFmsInt(v, NULL, 10);
 
-  // Potential error
-  if(value == 0) {
-    if(errno == EINVAL)
-      E_RETURN(6);
+  // Potential errors
+  if (errno == ERANGE) { E_RETURN(6); }
+  if (errno == EINVAL) { E_RETURN(7); }
 
-    if(errno == ERANGE)
-      E_RETURN(7);
-  }
   return 0;
 }
 
@@ -631,16 +619,10 @@ FmsIOGetTypedIntArray(FmsIOContext *ctx, const char *path, FmsIntType *type,
     if(err)
       E_RETURN(7);
 
-#if UINT_MAX == ULONG_MAX
-    *n = strtoull(v, NULL, 10);
-#else
-    *n = strtoul(v, NULL, 10);
-#endif
+    *n = StrToFmsInt(v, NULL, 10);
 
-    if(*n == 0) {
-      if(errno == EINVAL) E_RETURN(8);
-      if(errno == ERANGE) E_RETURN(9);
-    }
+    if (errno == ERANGE) { E_RETURN(8); }
+    if (errno == EINVAL) { E_RETURN(9); }
   }
 
   {
@@ -677,15 +659,15 @@ do { \
     DEST_T *data = malloc(sizeof(DEST_T) * *n); \
     FmsInt i = 0; \
     while(1) { \
-        FmsInt len = strlen(v); \
+        size_t len = strlen(v); \
         char *off = v, *newoff = NULL; \
         if(off[0] == '[') \
             off++; \
         while(len && i < *n) { \
             data[i++] = (DEST_T)FUNC(off, &newoff, 10); \
             newoff++; \
-            if(*newoff = ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
-            if(newoff - v >= len) break; \
+            if(*newoff == ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
+            if(newoff >= v + len) break; \
             off = newoff; \
         } \
         if(strchr(v, ']')) break; \
@@ -694,46 +676,36 @@ do { \
     *values = (void*)data; \
 } while(0)
 
-#if UINT_MAX == ULONG_MAX
-#define UNSIGNED_FUNC strtoull
-#define SIGNED_FUNC strtoll
-#else
-#define UNSIGNED_FUNC strtoul
-#define SIGNED_FUNC strtol
-#endif
-
   switch(*type) {
   case FMS_INT8:
-    READ_ARRAY_DATA(int8_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(int8_t, strtoimax);
     break;
   case FMS_INT16:
-    READ_ARRAY_DATA(int16_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(int16_t, strtoimax);
     break;
   case FMS_INT32:
-    READ_ARRAY_DATA(int32_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(int32_t, strtoimax);
     break;
   case FMS_INT64:
-    READ_ARRAY_DATA(int64_t, SIGNED_FUNC);
+    READ_ARRAY_DATA(int64_t, strtoimax);
     break;
   case FMS_UINT8:
-    READ_ARRAY_DATA(uint8_t, UNSIGNED_FUNC);
+    READ_ARRAY_DATA(uint8_t, strtoumax);
     break;
   case FMS_UINT16:
-    READ_ARRAY_DATA(uint16_t, UNSIGNED_FUNC);
+    READ_ARRAY_DATA(uint16_t, strtoumax);
     break;
   case FMS_UINT32:
-    READ_ARRAY_DATA(uint32_t, UNSIGNED_FUNC);
+    READ_ARRAY_DATA(uint32_t, strtoumax);
     break;
   case FMS_UINT64:
-    READ_ARRAY_DATA(uint64_t, UNSIGNED_FUNC);
+    READ_ARRAY_DATA(uint64_t, strtoumax);
     break;
   default:
     E_RETURN(16);
     break;
   }
 #undef READ_ARRAY_DATA
-#undef UNSIGNED_FUNC
-#undef SIGNED_FUNC
 
   return 0;
 }
@@ -770,16 +742,10 @@ FmsIOGetScalarArray(FmsIOContext *ctx, const char *path, FmsScalarType *type,
     if(err)
       E_RETURN(7);
 
-#if UINT_MAX == ULONG_MAX
-    *n = strtoull(v, NULL, 10);
-#else
-    *n = strtoul(v, NULL, 10);
-#endif
+    *n = StrToFmsInt(v, NULL, 10);
 
-    if(*n == 0) {
-      if(errno == EINVAL) E_RETURN(8);
-      if(errno == ERANGE) E_RETURN(9);
-    }
+    if (errno == ERANGE) { E_RETURN(8); }
+    if (errno == EINVAL) { E_RETURN(9); }
   }
 
   {
@@ -817,15 +783,15 @@ do { \
     DEST_T *data = malloc(sizeof(DEST_T) * SIZE); \
     FmsInt i = 0; \
     while(1) { \
-        FmsInt len = strlen(v); \
+        size_t len = strlen(v); \
         char *off = v, *newoff = NULL; \
         if(off[0] == '[') \
             off++; \
         while(len && i < SIZE) { \
             data[i++] = (DEST_T)FUNC(off, &newoff); \
             newoff++; \
-            if(*newoff = ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
-            if(newoff - v >= len) break; \
+            if(*newoff == ' ') newoff++; /* Current flaw in the file format, last element has no trialing space */ \
+            if(newoff >= v + len) break; \
             off = newoff; \
         } \
         if(strchr(v, ']')) break; \
@@ -886,11 +852,14 @@ FmsIOGetString(FmsIOContext *ctx, const char *path, const char **value) {
   return 0;
 }
 
+// This function is not used, for now.
+#if 0
 static int
 FmsIOGetStringArray(FmsIOContext *ctx, const char *path, const char ***values,
                     FmsInt *n) {
   E_RETURN(1); // TODO: Implement
 }
+#endif
 
 /**
 @brief This function initializes the IO context .
@@ -987,7 +956,7 @@ FmsIOAddIntConduit(FmsIOContext *ctx, const char *path, FmsInt value) {
 
 static int
 FmsIOAddIntArrayConduit(FmsIOContext *ctx, const char *path,
-                        const FmsInt *values, size_t n) {
+                        const FmsInt *values, FmsInt n) {
   if(!ctx) E_RETURN(1);
   if(!path) E_RETURN(2);
 
@@ -1593,12 +1562,12 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     kname = join_keys(key, "Name");
     err = (*io->add_string)(ctx, kname, mdata_name);
     FREE(kname);
+    if (err) { E_RETURN(4); }
 
     kdata = join_keys(key, "Data");
     err = (*io->add_typed_int_array)(ctx, kdata, int_type, data, size);
     FREE(kdata);
-    if(err)
-      E_RETURN(4);
+    if (err) { E_RETURN(5); }
     break;
   }
   case FMS_SCALAR: {
@@ -1609,17 +1578,17 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     const void *data = NULL;
 
     if(FmsMetaDataGetScalars(mdata, &mdata_name, &scalar_type, &size, &data))
-      E_RETURN(5);
+      E_RETURN(6);
 
     kname = join_keys(key, "Name");
     err = (*io->add_string)(ctx, kname, mdata_name);
     FREE(kname);
+    if (err) { E_RETURN(7); }
 
     kdata = join_keys(key, "Data");
     err = (*io->add_scalar_array)(ctx, kdata, scalar_type, data, size);
     FREE(kdata);
-    if(err)
-      E_RETURN(6);
+    if (err) { E_RETURN(8); }
     break;
   }
   case FMS_STRING: {
@@ -1628,17 +1597,17 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     const char *data = NULL;
 
     if(FmsMetaDataGetString(mdata, &mdata_name, &data))
-      E_RETURN(7);
+      E_RETURN(9);
 
     kname = join_keys(key, "Name");
     err = (*io->add_string)(ctx, kname, mdata_name);
     FREE(kname);
+    if (err) { E_RETURN(10); }
 
     kdata = join_keys(key, "Data");
     err = (*io->add_string)(ctx, kdata, data);
     FREE(kdata);
-    if(err)
-      E_RETURN(8);
+    if (err) { E_RETURN(11); }
     break;
   }
   case FMS_META_DATA: {
@@ -1648,18 +1617,19 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     FmsMetaData *data = NULL;
 
     if(FmsMetaDataGetMetaData(mdata, &mdata_name, &size, &data))
-      E_RETURN(9);
+      E_RETURN(12);
 
-    if(!data)
-      E_RETURN(10);
+    if (!data) { E_RETURN(13); }
 
     kname = join_keys(key, "Name");
     err = (*io->add_string)(ctx, kname, mdata_name);
     FREE(kname);
+    if (err) { E_RETURN(14); }
 
     ksize = join_keys(key, "Size");
     err = (*io->add_int)(ctx, ksize, size);
     FREE(ksize);
+    if (err) { E_RETURN(15); }
 
     kdata = join_keys(key, "Data");
     // Recursive?
@@ -1669,15 +1639,16 @@ FmsIOWriteFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
       tk = join_keys(kdata, temp);
       err = FmsIOWriteFmsMetaData(ctx, io, tk, data[i]);
       FREE(tk);
+      if (err) {
+        FREE(kdata);
+        E_RETURN(16);
+      }
     }
     FREE(kdata);
-
-    if(err)
-      E_RETURN(11);
     break;
   }
   default:
-    E_RETURN(12);
+    E_RETURN(17);
     break;
   }
   return 0;
@@ -1713,8 +1684,8 @@ FmsIOReadFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
   case FMS_INTEGER: {
     // Get DataArray
     char *kdata = join_keys(key, "Data");
-    err = (*io->get_typed_int_array)(ctx, kdata, &mdinfo->i_type, &mdinfo->data,
-                                     &mdinfo->size);
+    err = (*io->get_typed_int_array)(ctx, kdata, &mdinfo->subtype.i_type,
+                                     &mdinfo->data, &mdinfo->size);
     FREE(kdata);
     if(err)
       E_RETURN(5);
@@ -1723,8 +1694,8 @@ FmsIOReadFmsMetaData(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
   case FMS_SCALAR: {
     // Get data array
     char *kdata = join_keys(key, "Data");
-    err = (*io->get_scalar_array)(ctx, kdata, &mdinfo->s_type, &mdinfo->data,
-                                  &mdinfo->size);
+    err = (*io->get_scalar_array)(ctx, kdata, &mdinfo->subtype.s_type,
+                                  &mdinfo->data, &mdinfo->size);
     FREE(kdata);
     if(err)
       E_RETURN(6);
@@ -3085,19 +3056,22 @@ FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
   switch(minfo->mdtype) {
   case FMS_INTEGER: {
     void *data = NULL;
-    FmsMetaDataSetIntegers(md, minfo->name, minfo->i_type, minfo->size,
+    FmsMetaDataSetIntegers(md, minfo->name, minfo->subtype.i_type, minfo->size,
                            &data);
     if(data)
-      memcpy(data, minfo->data, FmsIntTypeSize[minfo->i_type]*minfo->size);
+      memcpy(data, minfo->data,
+             FmsIntTypeSize[minfo->subtype.i_type]*minfo->size);
     else
       E_RETURN(3);
     break;
   }
   case FMS_SCALAR: {
     void *data = NULL;
-    FmsMetaDataSetScalars(md, minfo->name, minfo->s_type, minfo->size, &data);
+    FmsMetaDataSetScalars(md, minfo->name, minfo->subtype.s_type, minfo->size,
+                          &data);
     if(data)
-      memcpy(data, minfo->data, FmsScalarTypeSize[minfo->s_type]*minfo->size);
+      memcpy(data, minfo->data,
+             FmsScalarTypeSize[minfo->subtype.s_type]*minfo->size);
     else
       E_RETURN(4);
     break;
@@ -3330,6 +3304,7 @@ FmsIOBuildFmsDataCollection(FmsIODataCollectionInfo *dc_info,
     FmsMetaData md = NULL;
     FmsDataCollectionAttachMetaData(*dc, &md);
     err = FmsIOBuildFmsMetaData(md, dc_info->md);
+    (void)err; // TODO: error handling
   }
 
   return 0;
@@ -3376,8 +3351,6 @@ FmsIOConstructFmsIODataCollectionInfo(FmsIODataCollectionInfo **dc_info) {
 static int
 FmsIODestroyFmsIODataCollectionInfo(FmsIODataCollectionInfo *dc_info) {
   if(!dc_info) E_RETURN(1);
-
-  int err = 0;
 
   // Destroy DomainNameInfos & DomainInfos
   const FmsInt ndomnames = dc_info->mesh_info->ndomain_names;

@@ -37,7 +37,8 @@ endif()
 # Setup thirdparty dependencies
 # Optional conduit implementation for IO functions
 if(CONDUIT_DIR)
-  find_package(Conduit 0.5.1 REQUIRED
+  enable_language(CXX)
+  find_package(Conduit 0.7.1 REQUIRED
     HINTS ${CONDUIT_DIR}
     NO_DEFAULT_PATH)
   set(FMS_HAVE_CONDUIT TRUE)

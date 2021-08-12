@@ -201,11 +201,11 @@ double *
 append_domain_coords_face(int dom, int order, double *ptr,
                           const int *global_index,
                           const int *edges, const int *tri, int ntri) {
-  int i,j,edge,v0,v1;
+  int i,j,v0,v1;
   double pt[2], xoffset, yoffset, travel = 0.01;
   if(order == 3) {
     for(i = 0; i < ntri; ++i) {
-      pt[0] = pt[1] = pt[2] = 0.;
+      pt[0] = pt[1] = 0.;
       for(j = 0; j < 3; ++j) {
         /* Current edge in tri*/
         int edge = tri[3*i+j];

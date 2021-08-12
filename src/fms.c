@@ -263,11 +263,12 @@ static void FmsAbortNotImplemented() {
   abort();
 }
 
-
+#ifndef NDEBUG
 static void FmsInternalError() {
   fprintf(stderr, "\n\nFMS internal error detected! Aborting ...\n\n");
   abort();
 }
+#endif
 
 static inline int FmsCopyString(const char *str, char **str_copy_p) {
   if (str == NULL) { *str_copy_p = NULL; return 0; }
@@ -2044,6 +2045,7 @@ int FmsMetaDataSetIntegers(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.int_type = int_type;
   mdata->num_entries = size;
   mdata->data = md_data;
+  // FIXME: why?
   memcpy(md_data, data, size*sizeof_int_type);
   *data = md_data;
   return 0;
@@ -2066,6 +2068,7 @@ int FmsMetaDataSetScalars(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.scalar_type = scal_type;
   mdata->num_entries = size;
   mdata->data = md_data;
+  // FIXME: why?
   memcpy(md_data, data, size*sizeof_scal_type);
   *data = md_data;
   return 0;
@@ -2984,6 +2987,8 @@ static inline FmsInt CompareScalarData(FmsScalarType stype, FmsInt size,
     case FMS_COMPLEX_DOUBLE:
       COMPARE_SCALAR_DATA(double, lhs, rhs, size*2, isDifferent);
       break;
+    default:
+      return 2;
   }
   return isDifferent;
 }
@@ -3019,6 +3024,8 @@ static inline FmsInt CompareIntData(FmsIntType itype, FmsInt size,
     case FMS_UINT64:
       COMPARE_INT_DATA(uint64_t, lhs, rhs, size, isDifferent);
       break;
+    default:
+      return 2;
   }
   return isDifferent;
 }
@@ -3350,6 +3357,10 @@ int FmsMetaDataCompare(FmsMetaData lhs, FmsMetaData rhs) {
         }
         break;
       }
+      default: {
+        diff += 1000000;
+        break;
+      }
     }
   }
   return diff;
@@ -3523,8 +3534,9 @@ int FmsTagCompare(FmsTag lhs, FmsTag rhs) {
 
     if(diff == 0) {
       FmsInt ne = 0;
-      if(lhs->comp)
-        lhs->comp->num_main_entities;
+      // FIXME: warning: expression result unused
+      // if(lhs->comp)
+      //   lhs->comp->num_main_entities;
       if(CompareIntData(lhs->tag_type, ne, lhs->tags, rhs->tags))
         diff += 1000;
     }

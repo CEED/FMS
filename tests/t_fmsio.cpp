@@ -1,6 +1,6 @@
 #include <fms.h>
 #include <fmsio.h>
-#include <fmstesting.hpp>
+#include "fmstesting.hpp"
 #include <gtest/gtest.h>
 
 TEST(FmsIO, WriteReadAscii) {

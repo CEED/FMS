@@ -140,7 +140,7 @@ append_coords_edge(int order, double *ptr, const double *coords,
 double *
 append_coords_face(int order, double *ptr, const double *coords,
                    const int *edges, const int *quads, int nquads, double travel) {
-  int i,j,ii,jj,edge,e0,e2,v0,v1,v2,v3;
+  int i,ii,jj,e0,e2,v0,v1,v2,v3;
   double pt[2], xoffset, yoffset;
   float r,s;
   if(order >= 2) {
@@ -264,7 +264,6 @@ add_doforder_scalar(FmsDataCollection dc, FmsComponent surface,
                     const char *name, int nverts, int nedges, int nquads) {
   int i, order = 3, ndofs, nedge_data, nface_data;
   float *data, *ptr;
-  double x, y;
   char fdname[100];
 
   /* Create a field descriptor for the coordinates that live on "surface". */
