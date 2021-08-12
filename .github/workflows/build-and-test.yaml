@@ -1,0 +1,66 @@
+# Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at
+# the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
+# reserved. See files LICENSE and NOTICE for details.
+#
+# This file is part of CEED, a collection of benchmarks, miniapps, software
+# libraries and APIs for efficient high-order finite element and spectral
+# element discretizations for exascale applications. For more information and
+# source code availability see http://github.com/ceed.
+#
+# The CEED research is supported by the Exascale Computing Project (17-SC-20-SC)
+# a collaborative effort of two U.S. Department of Energy organizations (Office
+# of Science and the National Nuclear Security Administration) responsible for
+# the planning and preparation of a capable exascale ecosystem, including
+# software, applications, hardware, advanced system engineering and early
+# testbed platforms, in support of the nation's exascale computing imperative.
+
+name: Build and test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  BUILD_C_FLAGS: -Wall -Wextra -pedantic -Werror
+  BUILD_CXX_FLAGS: -Wall -Wextra -pedantic -Werror
+
+jobs:
+  build-and-test:
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build-type: [Debug, Release]
+    name: ${{matrix.os}}-${{matrix.build-type}}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Configure
+      run: |
+        cmake \
+          -B ${{github.workspace}}/build \
+          -DCMAKE_BUILD_TYPE=${{matrix.build-type}} \
+          -DFMS_ENABLE_TESTS=ON \
+          -DCMAKE_C_FLAGS="$BUILD_C_FLAGS" \
+          -DCMAKE_CXX_FLAGS="$BUILD_CXX_FLAGS" \
+          -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+
+    - name: Build
+      run: |
+        cmake \
+          --build ${{github.workspace}}/build \
+          --config ${{matrix.build-type}}
+
+    - name: Install
+      run: |
+        cmake \
+          --build ${{github.workspace}}/build \
+          --config ${{matrix.build-type}} \
+          --target install
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{matrix.build-type}} --output-on-failure
