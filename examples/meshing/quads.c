@@ -100,7 +100,7 @@ double *
 append_coords_edge(int order, double *ptr, const double *coords,
                    const int *edges, int nedges, double travel) {
   int i, j, v0, v1;
-  double t, xoffset, yoffset, pt[2];
+  double t, xoffset = 0., yoffset = 0., pt[2];
 
   if(order > 1) {
     for(i = 0; i < nedges; ++i) {
@@ -141,7 +141,7 @@ double *
 append_coords_face(int order, double *ptr, const double *coords,
                    const int *edges, const int *quads, int nquads, double travel) {
   int i,ii,jj,e0,e2,v0,v1,v2,v3;
-  double pt[2], xoffset, yoffset;
+  double pt[2], xoffset = 0., yoffset = 0.;
   float r,s;
   if(order >= 2) {
     for(i = 0; i < nquads; ++i) {

@@ -12,7 +12,7 @@ TEST(Fms, Version) {
 TEST(Fms, DataCollectionCompare) {
     FmsDataCollection *dcs0 = NULL;
     FmsDataCollection *dcs1 = NULL;
-    FmsInt size0 = 0, size1 = -1;
+    FmsInt size0 = 0, size1 = 0;
     ASSERT_EQ(ConstructAllDataCollections(&size0, &dcs0), 0);
     ASSERT_TRUE(dcs0);
     ASSERT_TRUE(size0);
@@ -256,7 +256,7 @@ TEST(Fms, FieldDescriptorCompare) {
     FmsDataCollection dc1 = NULL;
     ASSERT_EQ(Construct2DData0(&dc1), 0);
     ASSERT_TRUE(dc1);
-    FmsInt dc_nfds = 0, dc1_nfds = -1;
+    FmsInt dc_nfds = 0, dc1_nfds = 0;
     FmsFieldDescriptor *dc_fds = NULL, *dc1_fds = NULL;
     ASSERT_EQ(FmsDataCollectionGetFieldDescriptors(dc, &dc_fds, &dc_nfds), 0);
     ASSERT_EQ(FmsDataCollectionGetFieldDescriptors(dc1, &dc1_fds, &dc1_nfds), 0);

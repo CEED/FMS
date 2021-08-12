@@ -110,6 +110,7 @@ static inline int FmsIOCopyString(const char *str, char **str_copy_p) {
 }
 
 // Make sure dst is large enough to hold N + 1 chars. N should be strlen(str) to convert an entire string.
+#ifdef FMS_HAVE_CONDUIT
 static inline int FmsIOStringToLower(const char *src, const size_t N, char *dst) {
   if(!dst) return 1;
   if(!src) dst[0] = '\0';
@@ -118,6 +119,7 @@ static inline int FmsIOStringToLower(const char *src, const size_t N, char *dst)
   dst[N] = '\0';
   return 0;
 }
+#endif
 
 /**
 Data structures.
@@ -2005,7 +2007,7 @@ FmsIOWriteComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
     sprintf(temp, "%d", (int)i);
     kpart = join_keys(kparts, temp);
     FmsDomain dom;
-    if(FmsComponentGetPart(comp, i, 0, &dom, NULL, NULL, NULL, NULL))
+    if(FmsComponentGetPart(comp, i, FMS_VERTEX, &dom, NULL, NULL, NULL, NULL))
       E_RETURN(6);
 
     if(dom) {
@@ -2190,7 +2192,7 @@ FmsIOReadFmsComponent(FmsIOContext *ctx, FmsIOFunctions *io, const char *key,
         char *k = join_keys(kpart, FmsEntityTypeNames[et]);
         if((*io->has_path)(ctx, k)) {
           // Now we have to populate the entitiy info
-          comp_info->parts[i].entities[et].ent_type = et;
+          comp_info->parts[i].entities[et].ent_type = (FmsEntityType)et;
 
           // Get nents
           {
@@ -3239,8 +3241,9 @@ FmsIOBuildFmsDataCollection(FmsIODataCollectionInfo *dc_info,
           break;
         }
       }
-      FmsFieldDescriptorSetFixedOrder(fd, fd_info->fixed_order[0],
-                                      fd_info->fixed_order[1], fd_info->fixed_order[2]);
+      FmsFieldDescriptorSetFixedOrder(fd, (FmsFieldType)fd_info->fixed_order[0],
+                                      (FmsBasisType)fd_info->fixed_order[1],
+                                      fd_info->fixed_order[2]);
       // TODO: Check ndofs & type against what was serialized?
     }
   }
@@ -3572,6 +3575,7 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc) {
     E_RETURN(5);
   }
 #else
+  (void)protocol;
   FmsIOContextInitialize(&ctx);
   FmsIOFunctionsInitialize(&io);
 #endif

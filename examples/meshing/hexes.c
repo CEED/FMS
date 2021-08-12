@@ -15,6 +15,10 @@
  software, applications, hardware, advanced system engineering and early
  testbed platforms, in support of the nation's exascale computing imperative.
 */
+
+// We use drand48() - this is one way to get it:
+#define _XOPEN_SOURCE
+
 #include <fms.h>
 #include <fmsio.h>
 #include <stdlib.h>
@@ -132,12 +136,12 @@ for orders 3+ look right on the faces.
 */
 int *
 compute_faces(const int *dims, int *nfaces) {
-  int i,j,k,A,B,C,D, E1,E2,E3,F1,F2,F3, *faces, *f;
+  int i,j,k,A,B,C,D, E1,E2/*,E3*/,F1,F2,F3, *faces, *f;
 
   /* number of edges. */
   E1 = (dims[0]-1) * (dims[1])   * (dims[2]);
   E2 = (dims[0])   * (dims[1]-1) * (dims[2]);
-  E3 = (dims[0])   * (dims[1])   * (dims[2]-1);
+  // E3 = (dims[0])   * (dims[1])   * (dims[2]-1);
 
   F1 = (dims[0]-1)*(dims[1]-1)*dims[2];     /* back/front */
   F2 = (dims[0]-1)*(dims[1])  *(dims[2]-1); /* bottom/top */
