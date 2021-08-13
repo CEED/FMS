@@ -87,8 +87,14 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
           /*"Aborting ...\n\n"*/, err_code, func, file, line);
   // abort();
 }
-#ifndef _MSC_VER
+// __PRETTY_FUNCTION__ is the same as the standard __func__ for most compilers,
+// with the exception of clang. GCC 9.3.0 with -Wpedantic gives a warning about
+// __PRETTY_FUNCTION__ not being standard, so we use __PRETTY_FUNCTION__ only
+// with clang.
+#if defined(__clang__)
 #define FMS_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#elif !defined(_MSC_VER)
+#define FMS_PRETTY_FUNCTION __func__
 #else // for Visual Studio C++
 #define FMS_PRETTY_FUNCTION __FUNCSIG__
 #endif
