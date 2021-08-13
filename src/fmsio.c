@@ -117,7 +117,8 @@ static inline int FmsIOCopyString(const char *str, char **str_copy_p) {
 
 // Make sure dst is large enough to hold N + 1 chars. N should be strlen(str) to convert an entire string.
 #ifdef FMS_HAVE_CONDUIT
-static inline int FmsIOStringToLower(const char *src, const size_t N, char *dst) {
+static inline int FmsIOStringToLower(const char *src, const size_t N,
+                                     char *dst) {
   if(!dst) return 1;
   if(!src) dst[0] = '\0';
   for(size_t i = 0; i < N; i++)
@@ -3096,8 +3097,7 @@ FmsIOBuildFmsMetaData(FmsMetaData md, FmsIOMetaDataInfo *minfo) {
     if(child) {
       for(i = 0; i < minfo->size; ++i)
         FmsIOBuildFmsMetaData(child[i], &mds[i]);
-    }
-    else
+    } else
       E_RETURN(5);
   }
   break;
