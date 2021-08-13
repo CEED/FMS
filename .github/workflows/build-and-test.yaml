@@ -48,7 +48,8 @@ jobs:
           -DFMS_ENABLE_TESTS=ON \
           -DCMAKE_C_FLAGS="$BUILD_C_FLAGS" \
           -DCMAKE_CXX_FLAGS="$BUILD_CXX_FLAGS" \
-          -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
+          -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install \
+          -DCMAKE_VERBOSE_MAKEFILE=ON
 
     - name: Build
       run: |
