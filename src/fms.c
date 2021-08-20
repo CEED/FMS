@@ -2051,8 +2051,6 @@ int FmsMetaDataSetIntegers(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.int_type = int_type;
   mdata->num_entries = size;
   mdata->data = md_data;
-  // FIXME: why?
-  memcpy(md_data, data, size*sizeof_int_type);
   *data = md_data;
   return 0;
 }
@@ -2074,8 +2072,6 @@ int FmsMetaDataSetScalars(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.scalar_type = scal_type;
   mdata->num_entries = size;
   mdata->data = md_data;
-  // FIXME: why?
-  memcpy(md_data, data, size*sizeof_scal_type);
   *data = md_data;
   return 0;
 }
@@ -3528,10 +3524,7 @@ int FmsTagCompare(FmsTag lhs, FmsTag rhs) {
   }
 
   if(diff == 0) {
-    FmsInt ne = 0;
-    // FIXME: warning: expression result unused
-    // if(lhs->comp)
-    //   lhs->comp->num_main_entities;
+    FmsInt ne = lhs->comp->num_main_entities;
     if(CompareIntData(lhs->tag_type, ne, lhs->tags, rhs->tags))
       diff += 1000;
   }

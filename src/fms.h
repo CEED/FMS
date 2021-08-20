@@ -27,8 +27,17 @@ extern "C" {
 #endif
 
 
+/// FMS version constant of the form: ((major*100 + minor)*100 + patch).
+/** For example, value of 10203 means v1.2.3.
+
+    The version is also defined in the files: CMakeLists.txt and Doxyfile.
+
+    This macro was added in version: v0.2. */
+#define FMS_VERSION 200
+
 /// Interface version constant of the form: ((major*100 + minor)*100 + patch).
-enum { FMS_INTERFACE_VERSION = 100 /* v0.1 */ };
+/** Since FMS v0.2, this value is the same as the macro FMS_VERSION. */
+enum { FMS_INTERFACE_VERSION = FMS_VERSION };
 
 /// Type used by fms for representing and storing sizes and indices.
 typedef uint64_t FmsInt;
@@ -56,9 +65,11 @@ typedef enum {
 
 extern const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES];
 
+/// Added in version: v0.2.
 extern const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES];
 
 /// Get the enum representation of an int type from the string name.
+/** Added in version: v0.2. */
 int FmsGetIntTypeFromName(const char * const name, FmsIntType *type);
 
 /// TODO: dox
@@ -235,8 +246,11 @@ typedef enum {
 } FmsEntityType;
 
 /// String representations of each entity type.
+/** Added in version: v0.2. */
 extern const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES];
 
+/// Convert an entity-type string to FmsEntityType value.
+/** Added in version: v0.2. */
 int FmsGetEntityTypeFromName(const char * const name, FmsEntityType *ent_type);
 
 /// Dimensions of the entity types.
@@ -306,7 +320,7 @@ typedef uint8_t FmsOrientation;
 
 enum { FMS_ORIENTATION_UNKNOWN = 255 };
 
-/// TODO: dox
+/// Scalar types supported by FMS: floating-point types, real and complex.
 typedef enum {
   FMS_FLOAT,
   FMS_DOUBLE,
@@ -318,14 +332,16 @@ typedef enum {
 
 extern const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES];
 
+/// Added in version: v0.2.
 extern const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES];
 
 /// Get the enum representation of an int type from the string name.
+/** Added in version: v0.2. */
 int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type);
 
-/// TODO: dox
+/// Field descriptor types supported by FMS, see FmsFieldDescriptor.
 typedef enum {
-  FMS_FIXED_ORDER
+  FMS_FIXED_ORDER ///< See FmsFieldDescriptorSetFixedOrder()
 } FmsFieldDescriptorType;
 
 /// TODO: dox
@@ -360,11 +376,14 @@ typedef enum {
   FMS_SCALAR,
   FMS_STRING,
   FMS_META_DATA,
-  FMS_NUM_METADATA_TYPES
+  FMS_NUM_METADATA_TYPES ///< Added in version: v0.2
 } FmsMetaDataType;
 
+/// Added in version: v0.2.
 extern const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES];
 
+/// Convert a meta-data-type string to FmsMetaDataType value.
+/** Added in version: v0.2. */
 int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type);
 
 /// TODO: dox
@@ -403,7 +422,7 @@ typedef struct FmsMetaData_private *FmsMetaData;
  */
 typedef struct FmsFieldDescriptor_private *FmsFieldDescriptor;
 
-/// TODO: dox
+/// Discrete field data type.
 /** A field structure contains:
     * a field name
     * meta-data - e.g. time (FmsMetaData, can be NULL)
@@ -415,7 +434,7 @@ typedef struct FmsFieldDescriptor_private *FmsFieldDescriptor;
  */
 typedef struct FmsField_private *FmsField;
 
-/// TODO: dox
+/// Data collection type: contains a mesh, discrete fileds, meta-data, etc.
 /** A data collection structure contains:
    * a name (const char *)
    * meta-data (FmsMetaData, can be NULL)
@@ -477,7 +496,6 @@ int FmsMeshAddDomains(FmsMesh mesh, const char *domain_name, FmsInt num_domains,
 int FmsMeshAddComponent(FmsMesh mesh, const char *comp_name,
                         FmsComponent *comp);
 
-/// TODO: dox
 /** @brief Add a new tag to the mesh with the given name and return the new tag
     in @a tag. */
 /** The tag should be set via the FmsTagSet* functions. */
@@ -783,15 +801,14 @@ int FmsTagGet(FmsTag tag, FmsIntType *tag_type, const void **ent_tags,
 int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
                           const char *const **tag_descr, FmsInt *num_tags);
 
-/// TODO: dox
-/**
-@brief Get the name of the data collection.
-@param dc the data collection.
-@param[out] name A char pointer that will be set to point to the name string.
-           The name is owned by the data collection so it should not be
-           freed or modified.
-@return 0 on success, non-zero otherwise.
-*/
+/// Get the name of the data collection.
+/** @param dc        the data collection.
+    @param[out] name A char pointer that will be set to point to the name
+                     string. The name is owned by the data collection so it
+                     should not be freed or modified.
+    @return 0 on success, non-zero otherwise.
+
+    Added in version: v0.2. */
 int FmsDataCollectionGetName(FmsDataCollection dc, const char **name);
 
 /// TODO: dox
@@ -869,20 +886,35 @@ int FmsMetaDataGetMetaData(FmsMetaData mdata, const char **mdata_name,
 ///
 
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsDataCollectionCompare(FmsDataCollection,FmsDataCollection);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsMeshCompare(FmsMesh,FmsMesh);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsFieldDescriptorCompare(FmsFieldDescriptor,FmsFieldDescriptor);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsFieldCompare(FmsField,FmsField);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsMetaDataCompare(FmsMetaData,FmsMetaData);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsDomainCompare(FmsDomain,FmsDomain);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsComponentCompare(FmsComponent,FmsComponent);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsTagCompare(FmsTag,FmsTag);
 
 #ifdef __cplusplus

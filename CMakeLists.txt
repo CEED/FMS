@@ -17,8 +17,9 @@
 # We use the C_STANDARD target property introduced in CMake 3.1
 cmake_minimum_required (VERSION 3.1)
 
-# Project name
-project(FMS VERSION 0.1 LANGUAGES C)
+# Project name and version.
+# The version is also defined in the files: fms.h and Doxyfile.
+project(FMS VERSION 0.2 LANGUAGES C)
 
 # Optional demo - see examples/README.md for more information
 option(FMS_ENABLE_DEMO "Enable the PUMI + MFEM demo" OFF)
@@ -68,9 +69,9 @@ if(FMS_ENABLE_DEMO)
   endif()
 
   if(PUMI_DIR)
-    find_package(SCOREC 2.1.0 REQUIRED 
-      CONFIG 
-      HINTS ${PUMI_DIR} 
+    find_package(SCOREC 2.1.0 REQUIRED
+      CONFIG
+      HINTS ${PUMI_DIR}
       NO_DEFAULT_PATH)
     set(FMS_HAVE_PUMI TRUE)
     message(STATUS "Demo using PUMI: ${SCOREC_DIR}")
