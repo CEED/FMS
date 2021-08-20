@@ -3498,7 +3498,7 @@ FmsIOWrite(const char *filename, const char *protocol, FmsDataCollection dc) {
   /* "open" the file. */
   if((*io.open)(&ctx, filename, "wt") == 0) {
     // FMS format version of this writer: 100 = v0.1
-    const int fms_format_version = 100;
+    const FmsInt fms_format_version = 100;
     if((*io.add_int)(&ctx, "FMS", fms_format_version) != 0) {
       /* "close" the file. */
       (*io.close)(&ctx);
@@ -3595,7 +3595,7 @@ FmsIORead(const char *filename, const char *protocol, FmsDataCollection *dc) {
     FmsIODataCollectionInfo *dc_info;
     FmsIOConstructFmsIODataCollectionInfo(&dc_info);
     // FMS format version of this reader: 100 = v0.1
-    const int fms_format_version = 100;
+    const FmsInt fms_format_version = 100;
     err = (*io.get_int)(&ctx, "FMS", &version);
     if(err != 0 || version != fms_format_version) {
       /* "close" the file. */
