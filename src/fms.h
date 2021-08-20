@@ -74,19 +74,19 @@ int FmsGetIntTypeFromName(const char * const name, FmsIntType *type);
 
 /// TODO: dox
 /** A mesh consists of:
-    * mesh domains
-    * mesh components, described in terms of the domains
-    * mesh tags (attributes), defined on components.
+    - mesh domains
+    - mesh components, described in terms of the domains
+    - mesh tags (attributes), defined on components.
 
     The mesh is also assigned a partition id, e.g. an MPI rank. */
 typedef struct FmsMesh_private *FmsMesh;
 
 /// TODO: dox
 /** Domains describe sets of interconnected mesh entities:
-    * 0d-entities / vertices
-    * 1d-entities / edges
-    * 2d-entities / faces: triangles, quads
-    * 3d-entities / volumes / regions: tets, hexes, wedges, pyramids.
+    - 0d-entities / vertices
+    - 1d-entities / edges
+    - 2d-entities / faces: triangles, quads
+    - 3d-entities / volumes / regions: tets, hexes, wedges, pyramids.
 
     All entities in a domain are enumerated within the domain.
 
@@ -213,18 +213,18 @@ enum { FMS_INVALID_DIM = 127 };
     For FMS_HEXAHEDRON, the faces (sides), "ABCDEF", the edges, "abcdefghijkl"
     and the vertices, "01234567", are ordered as follows:
 
-    z  y
-    | /       7--g--6
-    |/       /|    /|
-    *--x    / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
-           h  |  f  |   bottom   top      front    back     left     right
-          /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
-         /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
-        4--e--5   /     b  A  d  h  B  f  i  C  j  k  D  l  l  E  i  j  F  k
-        |  d  |  b      |     |  |     |  |     |  |     |  |     |  |     |
-        i /   j /       1--a--0  4--e--5  0--a--1  2--c--3  3--d--0  1--b--2
-        |/    |/
-        0--a--1
+        z  y
+        | /     7--g--6
+        |/     /|    /|
+        +--x  / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
+             h  |  f  |   bottom   top      front    back     left     right
+            /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
+           /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
+          4--e--5   /     b  A  d  h  B  f  i  C  j  k  D  l  l  E  i  j  F  k
+          |  d  |  b      |     |  |     |  |     |  |     |  |     |  |     |
+          i /   j /       1--a--0  4--e--5  0--a--1  2--c--3  3--d--0  1--b--2
+          |/    |/
+          0--a--1
 
     For example, vertex "0" has coordinates (x,y,z)=(0,0,0), vertex "6" has
     coordinates (1,1,1), etc.
@@ -388,61 +388,61 @@ int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type);
 
 /// TODO: dox
 /** A meta-data structure contains:
-    * a meta-data type (FmsMetaDataType)
-    * a meta-data subtype, e.g. FmsIntType, FmsScalarType; TODO: for FMS_STRING
+    - a meta-data type (FmsMetaDataType)
+    - a meta-data subtype, e.g. FmsIntType, FmsScalarType; TODO: for FMS_STRING
       type define FmsEncoding subtype
-    * a meta-data name (const char *)
-    * number of entries in the data array (FmsInt); the type of the entries in
+    - a meta-data name (const char *)
+    - number of entries in the data array (FmsInt); the type of the entries in
       the data array is based on the meta-data type and subtype, when subtype is
       applicable; in the case of FMS_STRING, the entries are of type char (or
       some other type depending on the FmsEncoding subtype when introduced)
-    * a data array (void *)
+    - a data array (void *)
  */
 typedef struct FmsMetaData_private *FmsMetaData;
 
 /// TODO: dox
 /** A field-descriptor structure contains:
-    * a field-descriptor name
-    * an associated mesh component (FmsComponent)
-    * a descriptor-type (FmsFieldDescriptorType)
-    * if descriptor-type == "fixed-order":
+    - a field-descriptor name
+    - an associated mesh component (FmsComponent)
+    - a descriptor-type (FmsFieldDescriptorType)
+    - if descriptor-type == "fixed-order":
       - a field type (FmsFieldType)
       - a basis-type (FmsBasisType)
       - an order
-    * total number of DOFs
+    - total number of DOFs
 
     The degrees of freedom are ordered part-by-part of the associated mesh
     component. Within each part, the dofs are ordered as follows:
-    * first, all DOFs on all vertices ordered according to the local (to the
+    - first, all DOFs on all vertices ordered according to the local (to the
       part) enumeration of the vertices
-    * second, all DOFs on all edges ordered according to the local (to the part)
+    - second, all DOFs on all edges ordered according to the local (to the part)
       enumeration of the edges
-    * similarly, continue adding DOFs for all remaining entity types in the
+    - similarly, continue adding DOFs for all remaining entity types in the
       order used by FmsEntityType.
  */
 typedef struct FmsFieldDescriptor_private *FmsFieldDescriptor;
 
 /// Discrete field data type.
 /** A field structure contains:
-    * a field name
-    * meta-data - e.g. time (FmsMetaData, can be NULL)
-    * a field-descriptor (FmsFieldDescriptor)
-    * number of vector components (FmsInt)
-    * a layout type, i.e. ordering for the vector components (FmsLayoutType)
-    * a scalar type (FmsScalarType)
-    * a data array of the given scalar type.
+    - a field name
+    - meta-data - e.g. time (FmsMetaData, can be NULL)
+    - a field-descriptor (FmsFieldDescriptor)
+    - number of vector components (FmsInt)
+    - a layout type, i.e. ordering for the vector components (FmsLayoutType)
+    - a scalar type (FmsScalarType)
+    - a data array of the given scalar type.
  */
 typedef struct FmsField_private *FmsField;
 
 /// Data collection type: contains a mesh, discrete fileds, meta-data, etc.
 /** A data collection structure contains:
-   * a name (const char *)
-   * meta-data (FmsMetaData, can be NULL)
-   * a mesh (FmsMesh)
-   * number of field-descriptors (FmsInt)
-   * an array of field-descriptors (FmsFieldDescriptor *)
-   * number of fields (FmsInt)
-   * an array of fields (FmsField *)
+   - a name (const char *)
+   - meta-data (FmsMetaData, can be NULL)
+   - a mesh (FmsMesh)
+   - number of field-descriptors (FmsInt)
+   - an array of field-descriptors (FmsFieldDescriptor *)
+   - number of fields (FmsInt)
+   - an array of fields (FmsField *)
  */
 typedef struct FmsDataCollection_private *FmsDataCollection;
 
