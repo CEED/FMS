@@ -1,0 +1,22 @@
+                            ███████ ███    ███ ███████
+                            ██      ████  ████ ██
+                            █████   ██ ████ ██ ███████
+                            ██      ██  ██  ██      ██
+                            ██      ██      ██ ███████
+
+                 CEED's high-order Field and Mesh Specification
+
+
+Version 0.2, released on Aug 27, 2021
+=====================================
+
+- Added support for writing and reading FmsDataCollections both in ASCII and
+  binary format via Conduit.
+
+- Added regression and code styling.
+
+
+Version 0.1, released on Jul 8, 2018
+====================================
+
+- Initial release.
