@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Edges
-  FmsInt nvtxs = 2;
+  const FmsInt nvtxs = 2;
   FmsInt num_edges = 0;
   int edge[nvtxs];
   itr = pumi_mesh->begin(1);
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
   pumi_mesh->end(itr);
 
   // Define Face based on edge Id's
-  FmsInt nedges = 3;
+  const FmsInt nedges = 3;
   int face[nedges];
   int num_triangles = 0;
   itr = pumi_mesh->begin(2);
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
   pumi_mesh->end(itr);
 
   // Define Elem based on face Id's
-  FmsInt nfaces = 4;
+  const FmsInt nfaces = 4;
   FmsEntityReordering EntReord;
   int tetOrd[4] = {0,1,3,2}; // PUMI order for tet element faces
   EntReord[FMS_TETRAHEDRON] = &tetOrd[0];

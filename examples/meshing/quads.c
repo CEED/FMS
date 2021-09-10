@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2020, Lawrence Livermore National Security, LLC. Produced at
+ Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at
  the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
  reserved. See files LICENSE and NOTICE for details.
 
@@ -100,7 +100,7 @@ double *
 append_coords_edge(int order, double *ptr, const double *coords,
                    const int *edges, int nedges, double travel) {
   int i, j, v0, v1;
-  double t, xoffset, yoffset, pt[2];
+  double t, xoffset = 0., yoffset = 0., pt[2];
 
   if(order > 1) {
     for(i = 0; i < nedges; ++i) {
@@ -140,8 +140,8 @@ append_coords_edge(int order, double *ptr, const double *coords,
 double *
 append_coords_face(int order, double *ptr, const double *coords,
                    const int *edges, const int *quads, int nquads, double travel) {
-  int i,j,ii,jj,edge,e0,e2,v0,v1,v2,v3;
-  double pt[2], xoffset, yoffset;
+  int i,ii,jj,e0,e2,v0,v1,v2,v3;
+  double pt[2], xoffset = 0., yoffset = 0.;
   float r,s;
   if(order >= 2) {
     for(i = 0; i < nquads; ++i) {
@@ -264,7 +264,6 @@ add_doforder_scalar(FmsDataCollection dc, FmsComponent surface,
                     const char *name, int nverts, int nedges, int nquads) {
   int i, order = 3, ndofs, nedge_data, nface_data;
   float *data, *ptr;
-  double x, y;
   char fdname[100];
 
   /* Create a field descriptor for the coordinates that live on "surface". */

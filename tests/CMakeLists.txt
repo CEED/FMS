@@ -45,6 +45,10 @@ function(fms_add_cpp_test)
 endfunction()
 # ------------------------------------------------------------------------
 
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Add FmsBaselines
 add_library(fms_testing_common STATIC fmstesting.hpp fmstesting.cpp)
 target_link_libraries(fms_testing_common PUBLIC fms)

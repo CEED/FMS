@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2020, Lawrence Livermore National Security, LLC. Produced at
+ Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at
  the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
  reserved. See files LICENSE and NOTICE for details.
 
@@ -155,7 +155,7 @@ append_domain_coords_edge(int dom, int order, double *ptr,
                           const int *global_index,
                           const int *edges, int nedges) {
   int i, j, v0, v1;
-  double t, xoffset, yoffset, pt[2], travel = 0.02;
+  double t, xoffset = 0., yoffset = 0., pt[2], travel = 0.02;
 
   if(order > 1) {
     for(i = 0; i < nedges; ++i) {
@@ -201,11 +201,11 @@ double *
 append_domain_coords_face(int dom, int order, double *ptr,
                           const int *global_index,
                           const int *edges, const int *tri, int ntri) {
-  int i,j,edge,v0,v1;
-  double pt[2], xoffset, yoffset, travel = 0.01;
+  int i,j,v0,v1;
+  double pt[2], xoffset = 0., yoffset = 0., travel = 0.01;
   if(order == 3) {
     for(i = 0; i < ntri; ++i) {
-      pt[0] = pt[1] = pt[2] = 0.;
+      pt[0] = pt[1] = 0.;
       for(j = 0; j < 3; ++j) {
         /* Current edge in tri*/
         int edge = tri[3*i+j];

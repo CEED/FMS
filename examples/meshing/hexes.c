@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2020, Lawrence Livermore National Security, LLC. Produced at
+ Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at
  the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
  reserved. See files LICENSE and NOTICE for details.
 
@@ -15,6 +15,10 @@
  software, applications, hardware, advanced system engineering and early
  testbed platforms, in support of the nation's exascale computing imperative.
 */
+
+// We use drand48() - this is one way to get it:
+#define _XOPEN_SOURCE
+
 #include <fms.h>
 #include <fmsio.h>
 #include <stdlib.h>
@@ -132,12 +136,12 @@ for orders 3+ look right on the faces.
 */
 int *
 compute_faces(const int *dims, int *nfaces) {
-  int i,j,k,A,B,C,D, E1,E2,E3,F1,F2,F3, *faces, *f;
+  int i,j,k,A,B,C,D, E1,E2/*,E3*/,F1,F2,F3, *faces, *f;
 
   /* number of edges. */
   E1 = (dims[0]-1) * (dims[1])   * (dims[2]);
   E2 = (dims[0])   * (dims[1]-1) * (dims[2]);
-  E3 = (dims[0])   * (dims[1])   * (dims[2]-1);
+  // E3 = (dims[0])   * (dims[1])   * (dims[2]-1);
 
   F1 = (dims[0]-1)*(dims[1]-1)*dims[2];     /* back/front */
   F2 = (dims[0]-1)*(dims[1])  *(dims[2]-1); /* bottom/top */
@@ -251,7 +255,7 @@ compute_cells(const int *dims, int *ncells) {
 
   int F1 = (dims[0]-1)*(dims[1]-1)*dims[2];     /* back/front */
   int F2 = (dims[0]-1)*(dims[1])  *(dims[2]-1); /* bottom/top */
-  int F3 = (dims[0])  *(dims[1]-1)*(dims[2]-1); /* left/right */
+  // int F3 = (dims[0])  *(dims[1]-1)*(dims[2]-1); /* left/right */
 
   for(k = 0; k < dims[2]-1; k++)
     for(j = 0; j < dims[1]-1; j++)
@@ -337,7 +341,7 @@ double *
 append_coord_dofs_face(int order, double *dest, const double *verts,
                        const int *edges, const int *faces, int nfaces, double travel,
                        int component) {
-  int i,j,ii,jj,edge,e0,e2,v0,v1,v2,v3;
+  int i,ii,jj,e0,e2,v0,v1,v2,v3;
   double value, r,s, *ptr = dest;
   if(order >= 2) {
     for(i = 0; i < nfaces; ++i) {
@@ -377,7 +381,7 @@ append_coord_dofs_face(int order, double *dest, const double *verts,
 double *
 append_coord_dofs_cell(int order, double *dest, const int *dims,
                        const double *verts, double travel, int component) {
-  int i,j,k,ii,jj,kk,edge,v0,v1;
+  int i,j,k,ii,jj,kk;
   double r,s,t,value, *ptr = dest;
 #ifdef ADD_CELLS
   if(order >= 2) {
@@ -443,7 +447,7 @@ add_radial_scalar(FmsDataCollection dc, FmsComponent volume,
                   const int *faces, int nfaces,
                   int ncells) {
   int i, ndofs;
-  double *data, *coords, *cptr, *x, *y, *z;
+  double *data, *coords, *x, *y, *z;
   char fdname[100];
 
   /* Create a field descriptor for the coordinates that live on "surface". */

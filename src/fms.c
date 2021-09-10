@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
+ Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at
  the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
  reserved. See files LICENSE and NOTICE for details.
 
@@ -225,8 +225,14 @@ static void FmsErrorDebug(int err_code, const char *func, const char *file,
           "Aborting ...\n\n", err_code, func, file, line);
   abort();
 }
-#ifndef _MSC_VER
+// __PRETTY_FUNCTION__ is the same as the standard __func__ for most compilers,
+// with the exception of clang. GCC 9.3.0 with -Wpedantic gives a warning about
+// __PRETTY_FUNCTION__ not being standard, so we use __PRETTY_FUNCTION__ only
+// with clang.
+#if defined(__clang__)
 #define FMS_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#elif !defined(_MSC_VER)
+#define FMS_PRETTY_FUNCTION __func__
 #else // for Visual Studio C++
 #define FMS_PRETTY_FUNCTION __FUNCSIG__
 #endif
@@ -263,11 +269,12 @@ static void FmsAbortNotImplemented() {
   abort();
 }
 
-
+#ifndef NDEBUG
 static void FmsInternalError() {
   fprintf(stderr, "\n\nFMS internal error detected! Aborting ...\n\n");
   abort();
 }
+#endif
 
 static inline int FmsCopyString(const char *str, char **str_copy_p) {
   if (str == NULL) { *str_copy_p = NULL; return 0; }
@@ -2044,7 +2051,6 @@ int FmsMetaDataSetIntegers(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.int_type = int_type;
   mdata->num_entries = size;
   mdata->data = md_data;
-  memcpy(md_data, data, size*sizeof_int_type);
   *data = md_data;
   return 0;
 }
@@ -2066,7 +2072,6 @@ int FmsMetaDataSetScalars(FmsMetaData mdata, const char *mdata_name,
   mdata->sub_type.scalar_type = scal_type;
   mdata->num_entries = size;
   mdata->data = md_data;
-  memcpy(md_data, data, size*sizeof_scal_type);
   *data = md_data;
   return 0;
 }
@@ -2966,59 +2971,63 @@ static inline double FmsAbs(const double x) {
   } while(0)
 
 static inline FmsInt CompareScalarData(FmsScalarType stype, FmsInt size,
-  const void *lhs, const void *rhs) {
+                                       const void *lhs, const void *rhs) {
   if(lhs == rhs) return 0;
   if(!lhs) return 1;
   if(!rhs) return 1;
   FmsInt isDifferent = 0;
   switch(stype) {
-    case FMS_FLOAT: 
-      COMPARE_SCALAR_DATA(float, lhs, rhs, size, isDifferent); 
-      break;
-    case FMS_DOUBLE:
-      COMPARE_SCALAR_DATA(double, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_COMPLEX_FLOAT:
-      COMPARE_SCALAR_DATA(float, lhs, rhs, size*2, isDifferent);
-      break;
-    case FMS_COMPLEX_DOUBLE:
-      COMPARE_SCALAR_DATA(double, lhs, rhs, size*2, isDifferent);
-      break;
+  case FMS_FLOAT:
+    COMPARE_SCALAR_DATA(float, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_DOUBLE:
+    COMPARE_SCALAR_DATA(double, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_COMPLEX_FLOAT:
+    COMPARE_SCALAR_DATA(float, lhs, rhs, size*2, isDifferent);
+    break;
+  case FMS_COMPLEX_DOUBLE:
+    COMPARE_SCALAR_DATA(double, lhs, rhs, size*2, isDifferent);
+    break;
+  default:
+    return 2;
   }
   return isDifferent;
 }
 
 static inline FmsInt CompareIntData(FmsIntType itype, FmsInt size,
-  const void *lhs, const void *rhs) {
+                                    const void *lhs, const void *rhs) {
   if(lhs == rhs) return 0;
   if(!lhs) return 1;
   if(!rhs) return 1;
   FmsInt isDifferent = 0;
   switch(itype) {
-    case FMS_INT8:
-      COMPARE_INT_DATA(int8_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_INT16:
-      COMPARE_INT_DATA(int16_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_INT32:
-      COMPARE_INT_DATA(int32_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_INT64:
-      COMPARE_INT_DATA(int64_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_UINT8:
-      COMPARE_INT_DATA(uint8_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_UINT16:
-      COMPARE_INT_DATA(uint16_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_UINT32:
-      COMPARE_INT_DATA(uint32_t, lhs, rhs, size, isDifferent);
-      break;
-    case FMS_UINT64:
-      COMPARE_INT_DATA(uint64_t, lhs, rhs, size, isDifferent);
-      break;
+  case FMS_INT8:
+    COMPARE_INT_DATA(int8_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_INT16:
+    COMPARE_INT_DATA(int16_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_INT32:
+    COMPARE_INT_DATA(int32_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_INT64:
+    COMPARE_INT_DATA(int64_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_UINT8:
+    COMPARE_INT_DATA(uint8_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_UINT16:
+    COMPARE_INT_DATA(uint16_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_UINT32:
+    COMPARE_INT_DATA(uint32_t, lhs, rhs, size, isDifferent);
+    break;
+  case FMS_UINT64:
+    COMPARE_INT_DATA(uint64_t, lhs, rhs, size, isDifferent);
+    break;
+  default:
+    return 2;
   }
   return isDifferent;
 }
@@ -3052,8 +3061,7 @@ int FmsDataCollectionCompare(FmsDataCollection lhs, FmsDataCollection rhs) {
   FmsDataCollectionGetFieldDescriptors(rhs, &rhs_fds, &rhs_nfds);
   if(lhs_nfds != rhs_nfds) {
     diff += 100;
-  }
-  else {
+  } else {
     for(FmsInt i = 0; i < lhs_nfds; i++) {
       if(FmsFieldDescriptorCompare(lhs_fds[i], rhs_fds[i])) {
         diff += 100;
@@ -3068,8 +3076,7 @@ int FmsDataCollectionCompare(FmsDataCollection lhs, FmsDataCollection rhs) {
   FmsDataCollectionGetFields(rhs, &rhs_fields, &rhs_nfields);
   if(lhs_nfds != rhs_nfds) {
     diff += 1000;
-  }
-  else {
+  } else {
     for(FmsInt i = 0; i < lhs_nfds; i++) {
       if(FmsFieldCompare(lhs_fields[i], rhs_fields[i])) {
         diff += 1000;
@@ -3100,8 +3107,7 @@ int FmsMeshCompare(FmsMesh lhs, FmsMesh rhs) {
   // Compare domain names & domains
   if(lhs_ndnames != rhs_ndnames) {
     diff += 1;
-  }
-  else {
+  } else {
     for(FmsInt i = 0; i < lhs_ndnames; i++) {
       const char *lhs_dname = NULL, *rhs_dname = NULL;
       FmsInt lhs_ndomains = 0, rhs_ndomains = -1;
@@ -3130,14 +3136,13 @@ int FmsMeshCompare(FmsMesh lhs, FmsMesh rhs) {
   FmsMeshGetNumComponents(rhs, &rhs_ncomponents);
   if(lhs_ncomponents != rhs_ncomponents) {
     diff += 1000;
-  }
-  else {
+  } else {
     for(FmsInt i = 0; i < lhs_ncomponents; i++) {
       FmsComponent lhs_component = NULL, rhs_component = NULL;
       FmsMeshGetComponent(lhs, i, &lhs_component);
       FmsMeshGetComponent(rhs, i, &rhs_component);
       if(FmsComponentCompare(lhs_component, rhs_component)) {
-          diff += 1000;
+        diff += 1000;
       }
     }
   }
@@ -3148,8 +3153,7 @@ int FmsMeshCompare(FmsMesh lhs, FmsMesh rhs) {
   FmsMeshGetNumTags(rhs, &rhs_ntags);
   if(lhs_ntags != rhs_ntags) {
     diff += 10000;
-  }
-  else {
+  } else {
     for(FmsInt i = 0; i < lhs_ntags; i++) {
       FmsTag lhs_tag = NULL, rhs_tag = NULL;
       FmsMeshGetTag(lhs, i, &lhs_tag);
@@ -3172,36 +3176,34 @@ int FmsFieldDescriptorCompare(FmsFieldDescriptor lhs, FmsFieldDescriptor rhs) {
   if(!lhs) return -1;
   if(!rhs) return -2;
   int diff = 0;
-  
+
   if(strcmp(lhs->name, rhs->name)) {
     diff += 1;
   }
 
   if(lhs->descr_type != rhs->descr_type) {
     diff += 10;
-  }
-  else {
+  } else {
     if(lhs->descr_type == FMS_FIXED_ORDER) {
       // Make sure both of their fixed orders have been set
       if(lhs->descriptor.fixed_order && rhs->descriptor.fixed_order) {
-        if(lhs->descriptor.fixed_order->basis_type != rhs->descriptor.fixed_order->basis_type) {
+        if(lhs->descriptor.fixed_order->basis_type !=
+            rhs->descriptor.fixed_order->basis_type) {
           diff += 100;
         }
-        if(lhs->descriptor.fixed_order->field_type != rhs->descriptor.fixed_order->field_type) {
+        if(lhs->descriptor.fixed_order->field_type !=
+            rhs->descriptor.fixed_order->field_type) {
           diff += 1000;
         }
         if(lhs->descriptor.fixed_order->order != rhs->descriptor.fixed_order->order) {
           diff += 10000;
         }
-      }
-      else if(!lhs->descriptor.fixed_order) {
+      } else if(!lhs->descriptor.fixed_order) {
         diff += 20;
-      }
-      else if(!rhs->descriptor.fixed_order) {
+      } else if(!rhs->descriptor.fixed_order) {
         diff += 30;
       }
-    }
-    else {
+    } else {
       // TODO: Update this when it's possible to set a non fixed order.
     }
   }
@@ -3218,13 +3220,11 @@ int FmsFieldDescriptorCompare(FmsFieldDescriptor lhs, FmsFieldDescriptor rhs) {
         if(strcmp(lhs->component->name, rhs->component->name)) {
           diff += 1000000;
         }
-      }
-      else if(!lhs->component->name)
+      } else if(!lhs->component->name)
         diff += 2000000;
       else if(!rhs->component->name)
         diff += 3000000;
-    }
-    else if(!lhs->component)
+    } else if(!lhs->component)
       diff += 4000000;
     else if(!rhs->component)
       diff += 5000000;
@@ -3283,8 +3283,7 @@ int FmsMetaDataCompare(FmsMetaData lhs, FmsMetaData rhs) {
   if(lhs->name && rhs->name) {
     if(strcmp(lhs->name, rhs->name))
       diff += 1;
-  }
-  else if(!lhs->name)
+  } else if(!lhs->name)
     diff += 2;
   else if(!rhs->name)
     diff += 3;
@@ -3297,128 +3296,132 @@ int FmsMetaDataCompare(FmsMetaData lhs, FmsMetaData rhs) {
   // Only compare the data is everything has been the same so far
   if(diff == 0) {
     switch(lhs->md_type) {
-      case FMS_INTEGER: {
-        if(lhs->sub_type.int_type != rhs->sub_type.int_type)
-          diff += 100;
+    case FMS_INTEGER: {
+      if(lhs->sub_type.int_type != rhs->sub_type.int_type)
+        diff += 100;
 
-        if(lhs->num_entries != rhs->num_entries)
-          diff += 1000;
+      if(lhs->num_entries != rhs->num_entries)
+        diff += 1000;
 
-        if(diff == 0) {
-          if(CompareIntData(lhs->sub_type.int_type, lhs->num_entries, lhs->data, rhs->data))
-            diff += 100000;
-        }
-        break;
+      if(diff == 0) {
+        if(CompareIntData(lhs->sub_type.int_type, lhs->num_entries, lhs->data,
+                          rhs->data))
+          diff += 100000;
       }
-      case FMS_SCALAR: {
-        if(lhs->sub_type.scalar_type != rhs->sub_type.scalar_type)
-          diff += 100;
+      break;
+    }
+    case FMS_SCALAR: {
+      if(lhs->sub_type.scalar_type != rhs->sub_type.scalar_type)
+        diff += 100;
 
-        if(lhs->num_entries != rhs->num_entries)
-          diff += 1000;
+      if(lhs->num_entries != rhs->num_entries)
+        diff += 1000;
 
-        if(diff == 0) {
-          if(CompareScalarData(lhs->sub_type.scalar_type, lhs->num_entries, lhs->data, rhs->data))
-            diff += 100000;
-        }
-        break;
+      if(diff == 0) {
+        if(CompareScalarData(lhs->sub_type.scalar_type, lhs->num_entries, lhs->data,
+                             rhs->data))
+          diff += 100000;
       }
-      case FMS_STRING: {
-        if(lhs->data && rhs->data) {
-          if(strcmp(lhs->data, rhs->data))
-            diff += 100000;
-        }
-        else if(!lhs->name)
-          diff += 100;
-        else if(!rhs->name)
-          diff += 200;
-        break;
-      }
-      case FMS_META_DATA: {
-        if(lhs->num_entries != rhs->num_entries)
-          diff += 100;
+      break;
+    }
+    case FMS_STRING: {
+      if(lhs->data && rhs->data) {
+        if(strcmp(lhs->data, rhs->data))
+          diff += 100000;
+      } else if(!lhs->name)
+        diff += 100;
+      else if(!rhs->name)
+        diff += 200;
+      break;
+    }
+    case FMS_META_DATA: {
+      if(lhs->num_entries != rhs->num_entries)
+        diff += 100;
 
-        if(diff == 0) {
-          FmsMetaData *ldata = (FmsMetaData*)lhs->data;
-          FmsMetaData *rdata = (FmsMetaData*)rhs->data;
-          const FmsInt NE = lhs->num_entries;
-          for(FmsInt i = 0; i < NE; i++) {
-            diff += FmsMetaDataCompare(ldata[i], rdata[i]);
-            if(diff)
-              break;
-          }
+      if(diff == 0) {
+        FmsMetaData *ldata = (FmsMetaData*)lhs->data;
+        FmsMetaData *rdata = (FmsMetaData*)rhs->data;
+        const FmsInt NE = lhs->num_entries;
+        for(FmsInt i = 0; i < NE; i++) {
+          diff += FmsMetaDataCompare(ldata[i], rdata[i]);
+          if(diff)
+            break;
         }
-        break;
       }
+      break;
+    }
+    default: {
+      diff += 1000000;
+      break;
+    }
     }
   }
   return diff;
 }
 
 int FmsDomainCompare(FmsDomain lhs, FmsDomain rhs) {
-    if(lhs == rhs) return 0;
-    if(!lhs) return -1;
-    if(!rhs) return -2;
-    int diff = 0;
+  if(lhs == rhs) return 0;
+  if(!lhs) return -1;
+  if(!rhs) return -2;
+  int diff = 0;
 
-    // Compare names
-    if(lhs->name && rhs->name) {
-      if(strcmp(lhs->name, rhs->name))
-        diff += 1;
+  // Compare names
+  if(lhs->name && rhs->name) {
+    if(strcmp(lhs->name, rhs->name))
+      diff += 1;
+  } else if(!lhs->name)
+    diff += 2;
+  else if(!rhs->name)
+    diff += 3;
+
+  // Compare ids
+  if(lhs->id != rhs->id)
+    diff += 10;
+
+  // Compare dimension
+  if(lhs->dim != rhs->dim)
+    diff += 100;
+
+  // Compare num ents
+  for(int i = 0; i < FMS_NUM_ENTITY_TYPES; i++) {
+    if(lhs->num_entities[i] != rhs->num_entities[i]) {
+      diff += 1000;
+      break;
     }
-    else if(!lhs->name) 
-      diff += 2;
-    else if(!rhs->name)
-      diff += 3;
+  }
 
-    // Compare ids
-    if(lhs->id != rhs->id)
-      diff += 10;
+  // Make sure everything is stored using the same types
+  for(int i = 0; i < FMS_NUM_ENTITY_TYPES; i++) {
+    if(lhs->side_ids_type[i] != rhs->side_ids_type[i]) {
+      diff += 10000;
+      break;
+    }
+  }
 
-    // Compare dimension
-    if(lhs->dim != rhs->dim)
-      diff += 100;
-
-    // Compare num ents
+  // Compare the entities
+  if(diff == 0) {
     for(int i = 0; i < FMS_NUM_ENTITY_TYPES; i++) {
-      if(lhs->num_entities[i] != rhs->num_entities[i]) {
-        diff += 1000;
+      if(CompareIntData(lhs->side_ids_type[i],
+                        lhs->num_entities[i]*FmsEntityNumSides[i],
+                        lhs->entities[i], rhs->entities[i])) {
+        diff += 100000;
         break;
       }
     }
+  }
 
-    // Make sure everything is stored using the same types
+  if(diff == 0) {
     for(int i = 0; i < FMS_NUM_ENTITY_TYPES; i++) {
-      if(lhs->side_ids_type[i] != rhs->side_ids_type[i]) {
-        diff += 10000;
+      if(CompareIntData(FMS_ORIENTATION_INT_TYPE,
+                        lhs->num_entities[i]*FmsEntityNumSides[i],
+                        lhs->orientations[i], rhs->orientations[i])) {
+        diff += 1000000;
         break;
       }
     }
+  }
 
-    // Compare the entities
-    if(diff == 0) {
-      for(int i = 0; i < FMS_NUM_ENTITY_TYPES; i++) {
-        if(CompareIntData(lhs->side_ids_type[i], 
-            lhs->num_entities[i]*FmsEntityNumSides[i],
-            lhs->entities[i], rhs->entities[i])) {
-          diff += 100000;
-          break;
-        }
-      }
-    }
-
-    if(diff == 0) {
-      for(int i = 0; i < FMS_NUM_ENTITY_TYPES; i++) {
-        if(CompareIntData(FMS_ORIENTATION_INT_TYPE, 
-            lhs->num_entities[i]*FmsEntityNumSides[i],
-            lhs->orientations[i], rhs->orientations[i])) {
-          diff += 1000000;
-          break;
-        }
-      }
-    }
-
-    return diff;
+  return diff;
 }
 
 int FmsComponentCompare(FmsComponent lhs, FmsComponent rhs) {
@@ -3430,8 +3433,7 @@ int FmsComponentCompare(FmsComponent lhs, FmsComponent rhs) {
   if(lhs->name && rhs->name) {
     if(strcmp(lhs->name, rhs->name))
       diff += 1;
-  }
-  else if(!lhs->name)
+  } else if(!lhs->name)
     diff += 2;
   else if(!rhs->name)
     diff += 3;
@@ -3470,8 +3472,8 @@ int FmsComponentCompare(FmsComponent lhs, FmsComponent rhs) {
           break;
         }
         if(CompareIntData(lpart->entities_ids_type[j],
-            lpart->num_entities[j],
-            lpart->entities_ids[j], rpart->entities_ids[j])) {
+                          lpart->num_entities[j],
+                          lpart->entities_ids[j], rpart->entities_ids[j])) {
           diff += 40000;
           break;
         }
@@ -3482,7 +3484,8 @@ int FmsComponentCompare(FmsComponent lhs, FmsComponent rhs) {
   }
 
   if(diff == 0) {
-    if(CompareIntData(FMS_INT_TYPE, lhs->num_relations, lhs->relations, rhs->relations))
+    if(CompareIntData(FMS_INT_TYPE, lhs->num_relations, lhs->relations,
+                      rhs->relations))
       diff += 50000;
   }
 
@@ -3491,43 +3494,40 @@ int FmsComponentCompare(FmsComponent lhs, FmsComponent rhs) {
     if(FmsFieldCompare(lhs->coordinates, rhs->coordinates))
       diff += 60000;
   }
-  
+
   return diff;
 }
 
 int FmsTagCompare(FmsTag lhs, FmsTag rhs) {
-    if(lhs == rhs) return 0;
-    if(!lhs) return -1;
-    if(!rhs) return -2;
-    int diff = 0;
+  if(lhs == rhs) return 0;
+  if(!lhs) return -1;
+  if(!rhs) return -2;
+  int diff = 0;
 
-    if(lhs->name && rhs->name) {
-      if(strcmp(lhs->name, rhs->name))
-        diff += 1;
-    }
-    else if(!lhs->name)
-      diff += 2;
-    else if(!rhs->name)
-      diff += 3;
+  if(lhs->name && rhs->name) {
+    if(strcmp(lhs->name, rhs->name))
+      diff += 1;
+  } else if(!lhs->name)
+    diff += 2;
+  else if(!rhs->name)
+    diff += 3;
 
-    if(lhs->tag_type != rhs->tag_type)
-      diff += 10;
+  if(lhs->tag_type != rhs->tag_type)
+    diff += 10;
 
-    if(lhs->num_tag_descriptions != rhs->num_tag_descriptions)
-      diff += 20;
+  if(lhs->num_tag_descriptions != rhs->num_tag_descriptions)
+    diff += 20;
 
-    if(diff == 0) {
-      if(FmsComponentCompare(lhs->comp, rhs->comp))
-        diff += 100;
-    }
+  if(diff == 0) {
+    if(FmsComponentCompare(lhs->comp, rhs->comp))
+      diff += 100;
+  }
 
-    if(diff == 0) {
-      FmsInt ne = 0;
-      if(lhs->comp)
-        lhs->comp->num_main_entities;
-      if(CompareIntData(lhs->tag_type, ne, lhs->tags, rhs->tags))
-        diff += 1000;
-    }
-    
-    return diff;
+  if(diff == 0) {
+    FmsInt ne = lhs->comp->num_main_entities;
+    if(CompareIntData(lhs->tag_type, ne, lhs->tags, rhs->tags))
+      diff += 1000;
+  }
+
+  return diff;
 }

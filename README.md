@@ -1,7 +1,17 @@
-# FMS: CEED's high-order Field and Mesh Specification
+                            ███████ ███    ███ ███████
+                            ██      ████  ████ ██
+                            █████   ██ ████ ██ ███████
+                            ██      ██  ██  ██      ██
+                            ██      ██      ██ ███████
+
+                 CEED's high-order Field and Mesh Specification
+
 
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 [![Documentation](https://codedocs.xyz/CEED/FMS.svg)](https://codedocs.xyz/CEED/FMS/)
+[![Build and Test (GH Actions)](https://github.com/CEED/FMS/actions/workflows/build-and-test.yaml/badge.svg?branch=master)](https://github.com/CEED/FMS/actions?query=workflow%3Abuild-and-test)
+[![Build and Test (GH Actions)](https://github.com/CEED/FMS/actions/workflows/check-style.yaml/badge.svg?branch=master)](https://github.com/CEED/FMS/actions?query=workflow%3Acheck-style)
+
 
 ## High-Order Data Description
 
@@ -15,6 +25,9 @@ finite elements within a common, easy to use framework. This includes high-order
 solutions and meshes, as those depicted below, as well as non-standard finite
 elements, such as Nedelec and Raviart-Thomas elements. See the [FMS
 documentation](doc/fms.md) for more details.
+
+Initial support for the FMS file formats is available in
+[VisIt](https://visit.llnl.gov/) version 3.2.
 
 ![High-order mesh and solution](doc/triple-pt-2x2.png)
 
@@ -42,7 +55,8 @@ exchange and high-order visualization and data analysis.
 
 ## Building
 
-You can get started with the default build configuration using the command line listed below. Checkout the [build documentation](doc/build.md) for more info.
+You can get started with the default build configuration using the command line
+listed below. Checkout the [build documentation](doc/build.md) for more info.
 
 ```console
 mkdir build
@@ -61,7 +75,7 @@ or by leaving a comment in the [issue tracker](https://github.com/CEED/FMS/issue
 The following copyright applies to each file in the CEED software suite, unless
 otherwise stated in the file:
 
-> Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at the
+> Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at the
 > Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights reserved.
 
 See files LICENSE and NOTICE for details.

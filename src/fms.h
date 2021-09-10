@@ -1,5 +1,5 @@
 /*
- Copyright (c) 2017, Lawrence Livermore National Security, LLC. Produced at
+ Copyright (c) 2021, Lawrence Livermore National Security, LLC. Produced at
  the Lawrence Livermore National Laboratory. LLNL-CODE-734707. All Rights
  reserved. See files LICENSE and NOTICE for details.
 
@@ -27,8 +27,17 @@ extern "C" {
 #endif
 
 
+/// FMS version constant of the form: ((major*100 + minor)*100 + patch).
+/** For example, value of 10203 means v1.2.3.
+
+    The version is also defined in the files: CMakeLists.txt and Doxyfile.
+
+    This macro was added in version: v0.2. */
+#define FMS_VERSION 200
+
 /// Interface version constant of the form: ((major*100 + minor)*100 + patch).
-enum { FMS_INTERFACE_VERSION = 100 /* v0.1 */ };
+/** Since FMS v0.2, this value is the same as the macro FMS_VERSION. */
+enum { FMS_INTERFACE_VERSION = FMS_VERSION };
 
 /// Type used by fms for representing and storing sizes and indices.
 typedef uint64_t FmsInt;
@@ -56,26 +65,28 @@ typedef enum {
 
 extern const size_t FmsIntTypeSize[FMS_NUM_INT_TYPES];
 
+/// Added in version: v0.2.
 extern const char * const FmsIntTypeNames[FMS_NUM_INT_TYPES];
 
 /// Get the enum representation of an int type from the string name.
+/** Added in version: v0.2. */
 int FmsGetIntTypeFromName(const char * const name, FmsIntType *type);
 
 /// TODO: dox
 /** A mesh consists of:
-    * mesh domains
-    * mesh components, described in terms of the domains
-    * mesh tags (attributes), defined on components.
+    - mesh domains
+    - mesh components, described in terms of the domains
+    - mesh tags (attributes), defined on components.
 
     The mesh is also assigned a partition id, e.g. an MPI rank. */
 typedef struct FmsMesh_private *FmsMesh;
 
 /// TODO: dox
 /** Domains describe sets of interconnected mesh entities:
-    * 0d-entities / vertices
-    * 1d-entities / edges
-    * 2d-entities / faces: triangles, quads
-    * 3d-entities / volumes / regions: tets, hexes, wedges, pyramids.
+    - 0d-entities / vertices
+    - 1d-entities / edges
+    - 2d-entities / faces: triangles, quads
+    - 3d-entities / volumes / regions: tets, hexes, wedges, pyramids.
 
     All entities in a domain are enumerated within the domain.
 
@@ -202,18 +213,18 @@ enum { FMS_INVALID_DIM = 127 };
     For FMS_HEXAHEDRON, the faces (sides), "ABCDEF", the edges, "abcdefghijkl"
     and the vertices, "01234567", are ordered as follows:
 
-    z  y
-    | /       7--g--6
-    |/       /|    /|
-    *--x    / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
-           h  |  f  |   bottom   top      front    back     left     right
-          /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
-         /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
-        4--e--5   /     b  A  d  h  B  f  i  C  j  k  D  l  l  E  i  j  F  k
-        |  d  |  b      |     |  |     |  |     |  |     |  |     |  |     |
-        i /   j /       1--a--0  4--e--5  0--a--1  2--c--3  3--d--0  1--b--2
-        |/    |/
-        0--a--1
+        z  y
+        | /     7--g--6
+        |/     /|    /|
+        +--x  / l   / k   z=0      z=1      y=0      y=1      x=0      x=1
+             h  |  f  |   bottom   top      front    back     left     right
+            /   3-/c--2   2--c--3  7--g--6  4--e--5  6--g--7  7--h--4  5--f--6
+           /   / /   /    |     |  |     |  |     |  |     |  |     |  |     |
+          4--e--5   /     b  A  d  h  B  f  i  C  j  k  D  l  l  E  i  j  F  k
+          |  d  |  b      |     |  |     |  |     |  |     |  |     |  |     |
+          i /   j /       1--a--0  4--e--5  0--a--1  2--c--3  3--d--0  1--b--2
+          |/    |/
+          0--a--1
 
     For example, vertex "0" has coordinates (x,y,z)=(0,0,0), vertex "6" has
     coordinates (1,1,1), etc.
@@ -235,8 +246,11 @@ typedef enum {
 } FmsEntityType;
 
 /// String representations of each entity type.
+/** Added in version: v0.2. */
 extern const char * const FmsEntityTypeNames[FMS_NUM_ENTITY_TYPES];
 
+/// Convert an entity-type string to FmsEntityType value.
+/** Added in version: v0.2. */
 int FmsGetEntityTypeFromName(const char * const name, FmsEntityType *ent_type);
 
 /// Dimensions of the entity types.
@@ -306,7 +320,7 @@ typedef uint8_t FmsOrientation;
 
 enum { FMS_ORIENTATION_UNKNOWN = 255 };
 
-/// TODO: dox
+/// Scalar types supported by FMS: floating-point types, real and complex.
 typedef enum {
   FMS_FLOAT,
   FMS_DOUBLE,
@@ -318,14 +332,16 @@ typedef enum {
 
 extern const size_t FmsScalarTypeSize[FMS_NUM_SCALAR_TYPES];
 
+/// Added in version: v0.2.
 extern const char * const FmsScalarTypeNames[FMS_NUM_SCALAR_TYPES];
 
 /// Get the enum representation of an int type from the string name.
+/** Added in version: v0.2. */
 int FmsGetScalarTypeFromName(const char * const name, FmsScalarType *type);
 
-/// TODO: dox
+/// Field descriptor types supported by FMS, see FmsFieldDescriptor.
 typedef enum {
-  FMS_FIXED_ORDER
+  FMS_FIXED_ORDER ///< See FmsFieldDescriptorSetFixedOrder()
 } FmsFieldDescriptorType;
 
 /// TODO: dox
@@ -360,70 +376,73 @@ typedef enum {
   FMS_SCALAR,
   FMS_STRING,
   FMS_META_DATA,
-  FMS_NUM_METADATA_TYPES
+  FMS_NUM_METADATA_TYPES ///< Added in version: v0.2
 } FmsMetaDataType;
 
+/// Added in version: v0.2.
 extern const char * const FmsMetaDataTypeNames[FMS_NUM_METADATA_TYPES];
 
+/// Convert a meta-data-type string to FmsMetaDataType value.
+/** Added in version: v0.2. */
 int FmsGetMetaDataTypeFromName(const char * const name, FmsMetaDataType *type);
 
 /// TODO: dox
 /** A meta-data structure contains:
-    * a meta-data type (FmsMetaDataType)
-    * a meta-data subtype, e.g. FmsIntType, FmsScalarType; TODO: for FMS_STRING
+    - a meta-data type (FmsMetaDataType)
+    - a meta-data subtype, e.g. FmsIntType, FmsScalarType; TODO: for FMS_STRING
       type define FmsEncoding subtype
-    * a meta-data name (const char *)
-    * number of entries in the data array (FmsInt); the type of the entries in
+    - a meta-data name (const char *)
+    - number of entries in the data array (FmsInt); the type of the entries in
       the data array is based on the meta-data type and subtype, when subtype is
       applicable; in the case of FMS_STRING, the entries are of type char (or
       some other type depending on the FmsEncoding subtype when introduced)
-    * a data array (void *)
+    - a data array (void *)
  */
 typedef struct FmsMetaData_private *FmsMetaData;
 
 /// TODO: dox
 /** A field-descriptor structure contains:
-    * a field-descriptor name
-    * an associated mesh component (FmsComponent)
-    * a descriptor-type (FmsFieldDescriptorType)
-    * if descriptor-type == "fixed-order":
+    - a field-descriptor name
+    - an associated mesh component (FmsComponent)
+    - a descriptor-type (FmsFieldDescriptorType)
+    - if descriptor-type == "fixed-order":
       - a field type (FmsFieldType)
       - a basis-type (FmsBasisType)
       - an order
-    * total number of DOFs
+    - total number of DOFs
 
     The degrees of freedom are ordered part-by-part of the associated mesh
     component. Within each part, the dofs are ordered as follows:
-    * first, all DOFs on all vertices ordered according to the local (to the
+    - first, all DOFs on all vertices ordered according to the local (to the
       part) enumeration of the vertices
-    * second, all DOFs on all edges ordered according to the local (to the part)
+    - second, all DOFs on all edges ordered according to the local (to the part)
       enumeration of the edges
-    * similarly, continue adding DOFs for all remaining entity types in the
+    - similarly, continue adding DOFs for all remaining entity types in the
       order used by FmsEntityType.
  */
 typedef struct FmsFieldDescriptor_private *FmsFieldDescriptor;
 
-/// TODO: dox
+/// Discrete field data type.
 /** A field structure contains:
-    * a field name
-    * meta-data - e.g. time (FmsMetaData, can be NULL)
-    * a field-descriptor (FmsFieldDescriptor)
-    * number of vector components (FmsInt)
-    * a layout type, i.e. ordering for the vector components (FmsLayoutType)
-    * a scalar type (FmsScalarType)
-    * a data array of the given scalar type.
+    - a field name
+    - meta-data - e.g. time (FmsMetaData, can be NULL)
+    - a field-descriptor (FmsFieldDescriptor)
+    - number of vector components (FmsInt)
+    - a layout type, i.e. ordering for the vector components (FmsLayoutType)
+    - a scalar type (FmsScalarType)
+    - a data array of the given scalar type.
  */
 typedef struct FmsField_private *FmsField;
 
-/// TODO: dox
+/// Data collection type: contains a mesh, discrete fileds, meta-data, etc.
 /** A data collection structure contains:
-   * a name (const char *)
-   * meta-data (FmsMetaData, can be NULL)
-   * a mesh (FmsMesh)
-   * number of field-descriptors (FmsInt)
-   * an array of field-descriptors (FmsFieldDescriptor *)
-   * number of fields (FmsInt)
-   * an array of fields (FmsField *)
+   - a name (const char *)
+   - meta-data (FmsMetaData, can be NULL)
+   - a mesh (FmsMesh)
+   - number of field-descriptors (FmsInt)
+   - an array of field-descriptors (FmsFieldDescriptor *)
+   - number of fields (FmsInt)
+   - an array of fields (FmsField *)
  */
 typedef struct FmsDataCollection_private *FmsDataCollection;
 
@@ -477,7 +496,6 @@ int FmsMeshAddDomains(FmsMesh mesh, const char *domain_name, FmsInt num_domains,
 int FmsMeshAddComponent(FmsMesh mesh, const char *comp_name,
                         FmsComponent *comp);
 
-/// TODO: dox
 /** @brief Add a new tag to the mesh with the given name and return the new tag
     in @a tag. */
 /** The tag should be set via the FmsTagSet* functions. */
@@ -783,15 +801,14 @@ int FmsTagGet(FmsTag tag, FmsIntType *tag_type, const void **ent_tags,
 int FmsTagGetDescriptions(FmsTag tag, FmsIntType *tag_type, const void **tags,
                           const char *const **tag_descr, FmsInt *num_tags);
 
-/// TODO: dox
-/**
-@brief Get the name of the data collection.
-@param dc the data collection.
-@param[out] name A char pointer that will be set to point to the name string.
-           The name is owned by the data collection so it should not be
-           freed or modified.
-@return 0 on success, non-zero otherwise.
-*/
+/// Get the name of the data collection.
+/** @param dc        the data collection.
+    @param[out] name A char pointer that will be set to point to the name
+                     string. The name is owned by the data collection so it
+                     should not be freed or modified.
+    @return 0 on success, non-zero otherwise.
+
+    Added in version: v0.2. */
 int FmsDataCollectionGetName(FmsDataCollection dc, const char **name);
 
 /// TODO: dox
@@ -869,20 +886,35 @@ int FmsMetaDataGetMetaData(FmsMetaData mdata, const char **mdata_name,
 ///
 
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsDataCollectionCompare(FmsDataCollection,FmsDataCollection);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsMeshCompare(FmsMesh,FmsMesh);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsFieldDescriptorCompare(FmsFieldDescriptor,FmsFieldDescriptor);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsFieldCompare(FmsField,FmsField);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsMetaDataCompare(FmsMetaData,FmsMetaData);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsDomainCompare(FmsDomain,FmsDomain);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsComponentCompare(FmsComponent,FmsComponent);
+
 /// Return 0 if equivalent, not 0 otherwise
+/** Added in version: v0.2. */
 int FmsTagCompare(FmsTag,FmsTag);
 
 #ifdef __cplusplus

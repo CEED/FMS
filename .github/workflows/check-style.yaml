@@ -14,18 +14,24 @@
 # software, applications, hardware, advanced system engineering and early
 # testbed platforms, in support of the nation's exascale computing imperative.
 
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS OFF)
+name: Check style
 
-add_executable(domains domains.c)
-target_link_libraries(domains PRIVATE fms)
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
 
-add_executable(hexes hexes.c)
-target_link_libraries(hexes PRIVATE fms m)
+jobs:
+  check-style:
+    runs-on: ubuntu-20.04
 
-add_executable(quads quads.c)
-target_link_libraries(quads PRIVATE fms m)
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
 
-add_executable(simple_mesh simple_mesh.c)
-target_link_libraries(simple_mesh PRIVATE fms)
+    - name: Get astyle
+      run: sudo apt-get install astyle
+
+    - name: Check style
+      run: ./apply-style.sh
