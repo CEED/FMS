@@ -16,6 +16,9 @@ solutions and meshes, as those depicted below, as well as non-standard finite
 elements, such as Nedelec and Raviart-Thomas elements. See the [FMS
 documentation](doc/fms.md) for more details.
 
+Initial support for the FMS file formats is available in
+[VisIt](https://visit.llnl.gov/) version 3.2.
+
 ![High-order mesh and solution](doc/triple-pt-2x2.png)
 
 The following diagram illustrates the current and planned components of FMS.
@@ -42,7 +45,8 @@ exchange and high-order visualization and data analysis.
 
 ## Building
 
-You can get started with the default build configuration using the command line listed below. Checkout the [build documentation](doc/build.md) for more info.
+You can get started with the default build configuration using the command line
+listed below. Checkout the [build documentation](doc/build.md) for more info.
 
 ```console
 mkdir build
