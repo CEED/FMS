@@ -1,7 +1,17 @@
-# FMS: CEED's high-order Field and Mesh Specification
+                            ███████ ███    ███ ███████
+                            ██      ████  ████ ██
+                            █████   ██ ████ ██ ███████
+                            ██      ██  ██  ██      ██
+                            ██      ██      ██ ███████
+
+                 CEED's high-order Field and Mesh Specification
+
 
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-orange.svg)](https://opensource.org/licenses/BSD-2-Clause)
 [![Documentation](https://codedocs.xyz/CEED/FMS.svg)](https://codedocs.xyz/CEED/FMS/)
+[![Build and Test (GH Actions)](https://github.com/CEED/FMS/actions/workflows/build-and-test.yaml/badge.svg?branch=master)](https://github.com/CEED/FMS/actions?query=workflow%3Abuild-and-test)
+[![Build and Test (GH Actions)](https://github.com/CEED/FMS/actions/workflows/check-style.yaml/badge.svg?branch=master)](https://github.com/CEED/FMS/actions?query=workflow%3Acheck-style)
+
 
 ## High-Order Data Description
 
